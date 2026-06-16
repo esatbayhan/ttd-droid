@@ -1,0 +1,21 @@
+# Android/Gradle
+.gradle/
+build/
+*/build/
+local.properties
+*.iml
+.idea/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.ap_
+*.dex
+
+# Superpowers
+.superpowers/
+
+# OS
+.DS_Store
+Thumbs.db
+.kotlin/
