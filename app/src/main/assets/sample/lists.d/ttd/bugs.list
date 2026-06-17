@@ -1,0 +1,10 @@
+---
+name: Bugs
+icon: 🐛
+description: Bug tracking items
+---
+ref includes PROJ
+AND
+not done
+
+sort by priority asc

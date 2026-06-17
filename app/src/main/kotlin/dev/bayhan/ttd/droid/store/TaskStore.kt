@@ -12,8 +12,9 @@ class TaskStore(private val context: Context) {
 
     private var rootUri: Uri? = null
     private var snapshot: SnapshotIndex? = null
+    private var rootDoc: DocumentFile? = null
 
-    fun isReady(): Boolean = rootUri != null
+    fun isReady(): Boolean = rootUri != null || rootDoc != null
 
     fun setRoot(uri: Uri) {
         rootUri = uri
@@ -26,10 +27,13 @@ class TaskStore(private val context: Context) {
         } catch (_: SecurityException) {}
     }
 
+    fun setRoot(doc: DocumentFile) {
+        rootDoc = doc
+    }
+
     fun refreshSnapshot(): RefreshDelta? {
-        val uri = rootUri ?: return null
-        val rootDoc = DocumentFile.fromTreeUri(context, uri) ?: return null
-        val newSnapshot = SnapshotIndex.build(rootDoc)
+        val doc = rootDoc ?: rootUri?.let { DocumentFile.fromTreeUri(context, it) } ?: return null
+        val newSnapshot = SnapshotIndex.build(doc)
         val delta = snapshot?.diff(newSnapshot)
             ?: RefreshDelta(newSnapshot.entries.keys.toList(), emptyList(), emptyList())
         snapshot = newSnapshot
@@ -37,10 +41,9 @@ class TaskStore(private val context: Context) {
     }
 
     fun loadTasks(includeDone: Boolean = false): List<Task> {
-        val uri = rootUri ?: return emptyList()
-        val rootDoc = DocumentFile.fromTreeUri(context, uri) ?: return emptyList()
+        val doc = rootDoc ?: rootUri?.let { DocumentFile.fromTreeUri(context, it) } ?: return emptyList()
         val tasks = mutableListOf<Task>()
-        collectTasks(rootDoc, tasks, includeDone)
+        collectTasks(doc, tasks, includeDone)
         return tasks
     }
 
@@ -57,9 +60,11 @@ class TaskStore(private val context: Context) {
             } else if (file.name?.endsWith(".txt") == true) {
                 try {
                     context.contentResolver.openInputStream(file.uri)?.use { stream ->
-                        val text = stream.bufferedReader().readText().trim()
-                        if (text.isNotEmpty()) {
-                            tasks.add(TaskParser.parse(text).copy(filename = file.name ?: ""))
+                        stream.bufferedReader().readLines().forEach { line ->
+                            val trimmed = line.trim()
+                            if (trimmed.isNotEmpty()) {
+                                tasks.add(TaskParser.parse(trimmed).copy(filename = file.name ?: ""))
+                            }
                         }
                     }
                 } catch (_: Exception) {}
@@ -99,18 +104,21 @@ class TaskStore(private val context: Context) {
         }
     }
 
-    fun markDone(filename: String): Boolean {
+    fun markDone(filename: String, raw: String): Boolean {
         val uri = rootUri ?: return false
         val rootDoc = DocumentFile.fromTreeUri(context, uri) ?: return false
         val taskFile = findFile(rootDoc, filename) ?: return false
 
-        val content = try {
+        val lines = try {
             context.contentResolver.openInputStream(taskFile.uri)?.use {
-                it.bufferedReader().readText().trim()
-            } ?: ""
+                it.bufferedReader().readLines()
+            } ?: return false
         } catch (_: Exception) { return false }
 
-        val task = TaskParser.parse(content)
+        val trimmedRaw = raw.trim()
+        val remaining = lines.filter { it.trim() != trimmedRaw }
+
+        val task = TaskParser.parse(raw)
         val today = java.time.LocalDate.now().toString()
         val doneLine = TaskParser.format(
             task.copy(done = true, completionDate = today, priority = null)
@@ -120,13 +128,22 @@ class TaskStore(private val context: Context) {
             rootDoc.listFiles().find { it.name == "done.txt.d" }
         } catch (_: Exception) { null }
             ?: rootDoc.createDirectory("done.txt.d") ?: return false
-        val destFile = doneDir.createFile("text/plain", filename) ?: return false
+        val doneFilename = if (remaining.isEmpty()) filename else "done-${android.os.Process.myPid()}-${System.nanoTime()}.txt"
+        val destFile = doneDir.createFile("text/plain", doneFilename) ?: return false
 
         return try {
             context.contentResolver.openOutputStream(destFile.uri)?.use { stream ->
                 stream.write(doneLine.toByteArray())
             }
-            taskFile.delete()
+
+            if (remaining.isEmpty()) {
+                taskFile.delete()
+            } else {
+                context.contentResolver.openOutputStream(taskFile.uri, "wt")?.use { stream ->
+                    stream.write(remaining.joinToString("\n").toByteArray())
+                }
+            }
+
             refreshSnapshot()
             true
         } catch (_: Exception) {
@@ -134,12 +151,29 @@ class TaskStore(private val context: Context) {
         }
     }
 
-    fun delete(filename: String): Boolean {
+    fun delete(filename: String, raw: String): Boolean {
         val uri = rootUri ?: return false
         val rootDoc = DocumentFile.fromTreeUri(context, uri) ?: return false
         val file = findFile(rootDoc, filename) ?: return false
+
+        val lines = try {
+            context.contentResolver.openInputStream(file.uri)?.use {
+                it.bufferedReader().readLines()
+            } ?: return false
+        } catch (_: Exception) { return false }
+
+        val trimmedRaw = raw.trim()
+        val remaining = lines.filter { it.trim() != trimmedRaw }
+
         return try {
-            val deleted = file.delete()
+            val deleted = if (remaining.isEmpty()) {
+                file.delete()
+            } else {
+                context.contentResolver.openOutputStream(file.uri, "wt")?.use { stream ->
+                    stream.write(remaining.joinToString("\n").toByteArray())
+                }
+                true
+            }
             if (deleted) refreshSnapshot()
             deleted
         } catch (_: Exception) { false }
@@ -160,14 +194,23 @@ class TaskStore(private val context: Context) {
         return null
     }
 
-    fun overwriteTask(filename: String, newRaw: String): Boolean {
+    fun overwriteTask(filename: String, oldRaw: String, newRaw: String): Boolean {
         val uri = rootUri ?: return false
         val rootDoc = DocumentFile.fromTreeUri(context, uri) ?: return false
         val file = findFile(rootDoc, filename) ?: return false
 
+        val lines = try {
+            context.contentResolver.openInputStream(file.uri)?.use {
+                it.bufferedReader().readLines()
+            } ?: return false
+        } catch (_: Exception) { return false }
+
+        val trimmedOld = oldRaw.trim()
+        val updated = lines.map { if (it.trim() == trimmedOld) newRaw else it }
+
         return try {
             context.contentResolver.openOutputStream(file.uri, "wt")?.use { stream ->
-                stream.write(newRaw.toByteArray())
+                stream.write(updated.joinToString("\n").toByteArray())
             }
             refreshSnapshot()
             true

@@ -108,7 +108,7 @@ class MainActivity : ComponentActivity() {
                                             .find { it.raw == task.raw }?.filename ?: ""
                                     }
                                     if (filename.isNotEmpty()) {
-                                        store.markDone(filename)
+                                        store.markDone(filename, task.raw)
                                     }
                                 }
                                 withContext(Dispatchers.Main) {
@@ -118,7 +118,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onRemoveFromList = { task ->
-                            tasks = tasks.filter { it.filename != task.filename }
+                            tasks = tasks.filter { !(it.filename == task.filename && it.raw == task.raw) }
                         },
                         onSaveTask = { raw ->
                             val filename = "task-${android.os.Process.myPid()}-${System.nanoTime()}.txt"
@@ -133,14 +133,14 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         },
-                        onEditTask = { filename, raw ->
+                        onEditTask = { filename, oldRaw, newRaw ->
                             tasks = tasks.map { t ->
-                                if (t.filename == filename) TaskParser.parse(raw).copy(filename = filename)
+                                if (t.filename == filename && t.raw == oldRaw) TaskParser.parse(newRaw).copy(filename = filename)
                                 else t
                             }
                             lifecycleScope.launch(Dispatchers.IO) {
                                 withContext(NonCancellable) {
-                                    store.overwriteTask(filename, raw)
+                                    store.overwriteTask(filename, oldRaw, newRaw)
                                 }
                                 withContext(Dispatchers.Main) {
                                     TaskNotifier.schedule(this@MainActivity)
@@ -149,10 +149,10 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onDeleteTask = { task ->
-                            tasks = tasks.filter { it.filename != task.filename }
+                            tasks = tasks.filter { !(it.filename == task.filename && it.raw == task.raw) }
                             lifecycleScope.launch(Dispatchers.IO) {
                                 withContext(NonCancellable) {
-                                    store.delete(task.filename)
+                                    store.delete(task.filename, task.raw)
                                 }
                                 withContext(Dispatchers.Main) {
                                     TaskNotifier.schedule(this@MainActivity)
@@ -219,6 +219,12 @@ class MainActivity : ComponentActivity() {
                         onHideUpdatedDateChange = { enabled ->
                             hideUpdatedDate = enabled
                             AppConfig.setHideUpdatedDate(this@MainActivity, enabled)
+                        },
+                        onTaskDirChanged = { uri ->
+                            store.setRoot(uri)
+                            isConfigured = true
+                            refresh()
+                            WidgetUpdateWorker.enqueue(this@MainActivity)
                         }
                     )
                 }
@@ -252,7 +258,7 @@ class MainActivity : ComponentActivity() {
         }
         lifecycleScope.launch {
             withContext(Dispatchers.IO) {
-                store.overwriteTask(task.filename, newRaw)
+                store.overwriteTask(task.filename, task.raw, newRaw)
             }
             refresh()
             TaskNotifier.schedule(this@MainActivity)

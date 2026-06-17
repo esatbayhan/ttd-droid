@@ -1,0 +1,8 @@
+---
+name: Today
+icon: 📅
+description: Tasks due or scheduled today
+---
+due <= today
+OR
+scheduled <= today

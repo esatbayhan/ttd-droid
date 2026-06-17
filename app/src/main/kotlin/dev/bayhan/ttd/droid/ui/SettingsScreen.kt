@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.documentfile.provider.DocumentFile
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -17,6 +18,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.res.stringResource
 import androidx.core.content.ContextCompat
+import dev.bayhan.ttd.droid.BuildConfig
+import dev.bayhan.ttd.droid.util.SampleDataSeeder
 import dev.bayhan.ttd.droid.R
 import dev.bayhan.ttd.droid.config.AppConfig
 import dev.bayhan.ttd.droid.config.NotifyConfig
@@ -43,7 +46,8 @@ fun SettingsContent(
     showTaskCounts: Boolean = true,
     onShowTaskCountsChange: (Boolean) -> Unit = {},
     hideUpdatedDate: Boolean = true,
-    onHideUpdatedDateChange: (Boolean) -> Unit = {}
+    onHideUpdatedDateChange: (Boolean) -> Unit = {},
+    onTaskDirChanged: ((Uri) -> Unit)? = null
 ) {
     val context = LocalContext.current
     var taskDirUri by remember { mutableStateOf(AppConfig.getTaskDirUri(context)) }
@@ -53,6 +57,7 @@ fun SettingsContent(
         if (uri != null) {
             AppConfig.setTaskDirUri(context, uri)
             taskDirUri = uri
+            onTaskDirChanged?.invoke(uri)
         }
     }
 
@@ -62,6 +67,31 @@ fun SettingsContent(
             supportingContent = { Text(taskDirUri?.toString() ?: stringResource(R.string.settings_not_set)) })
         Spacer(modifier = Modifier.height(8.dp))
         Button(onClick = { dirPicker.launch(null) }) { Text(stringResource(R.string.choose_directory)) }
+        Spacer(modifier = Modifier.height(16.dp))
+        val seedDirPicker = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.OpenDocumentTree()
+        ) { uri: Uri? ->
+            if (uri != null) {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                    android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+                val doc = DocumentFile.fromTreeUri(context, uri)
+                if (doc != null) {
+                    SampleDataSeeder.seed(context, doc)
+                }
+                AppConfig.setTaskDirUri(context, uri)
+                taskDirUri = uri
+                onTaskDirChanged?.invoke(uri)
+            }
+        }
+
+        if (BuildConfig.DEBUG) {
+            Button(onClick = { seedDirPicker.launch(null) }) {
+                Text(stringResource(R.string.settings_load_sample_data))
+            }
+        }
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()
         Spacer(modifier = Modifier.height(8.dp))

@@ -25,6 +25,7 @@ import dev.bayhan.ttd.droid.task.TaskQuery
 import dev.bayhan.ttd.droid.ui.components.ChipBar
 import dev.bayhan.ttd.droid.R
 import dev.bayhan.ttd.droid.ui.components.TaskRow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -57,6 +58,7 @@ fun TaskListContent(
     val dismissedKeys = remember { mutableStateSetOf<String>() }
     val toggledDoneKeys = remember { mutableStateSetOf<String>() }
     val disappearingKeys = remember { mutableStateSetOf<String>() }
+    val toggleJobs = remember { mutableMapOf<String, Job>() }
     val scope = rememberCoroutineScope()
 
     val availableProjects = remember(sorted) {
@@ -75,6 +77,8 @@ fun TaskListContent(
         dismissedKeys.clear()
         toggledDoneKeys.clear()
         disappearingKeys.clear()
+        toggleJobs.values.forEach { it.cancel() }
+        toggleJobs.clear()
     }
 
     val filtered = remember(sorted, selectedProjects, selectedContexts, sortField, sortAsc) {
@@ -92,7 +96,7 @@ fun TaskListContent(
         result
     }
 
-    fun taskKey(task: Task): String = task.filename.ifEmpty { task.raw.hashCode().toString() }
+    fun taskKey(task: Task): String = "${task.filename}\t${task.raw}"
 
     @Composable
     fun TaskItem(task: Task) {
@@ -168,11 +172,14 @@ fun TaskListContent(
                         onToggleDone = {
                             if (key in toggledDoneKeys) {
                                 toggledDoneKeys.remove(key)
+                                toggleJobs[key]?.cancel()
+                                toggleJobs.remove(key)
                             } else {
                                 toggledDoneKeys.add(key)
                                 onMarkDone(task)
-                                scope.launch {
+                                toggleJobs[key] = scope.launch {
                                     delay(2000L)
+                                    if (key !in toggledDoneKeys) return@launch
                                     disappearingKeys.add(key)
                                     delay(300L)
                                     onRemoveFromList(task)

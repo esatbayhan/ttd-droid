@@ -1,5 +1,6 @@
 package dev.bayhan.ttd.droid.ui
 
+import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -42,7 +43,7 @@ fun MainScreen(
     tasks: List<Task>, smartLists: List<LoadedSmartList>,
     onMarkDone: (Task) -> Unit,
     onSaveTask: (String) -> Unit,
-    onEditTask: (String, String) -> Unit,
+    onEditTask: (String, String, String) -> Unit,
     onDeleteTask: (Task) -> Unit,
     onUndoDelete: (Task) -> Unit,
     onRemoveFromList: (Task) -> Unit = {},
@@ -68,7 +69,8 @@ fun MainScreen(
     showTaskCounts: Boolean = true,
     onShowTaskCountsChange: (Boolean) -> Unit = {},
     hideUpdatedDate: Boolean = true,
-    onHideUpdatedDateChange: (Boolean) -> Unit = {}
+    onHideUpdatedDateChange: (Boolean) -> Unit = {},
+    onTaskDirChanged: ((Uri) -> Unit)? = null
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -549,7 +551,8 @@ fun MainScreen(
                     showTaskCounts = showTaskCounts,
                     onShowTaskCountsChange = onShowTaskCountsChange,
                     hideUpdatedDate = hideUpdatedDate,
-                    onHideUpdatedDateChange = onHideUpdatedDateChange
+                    onHideUpdatedDateChange = onHideUpdatedDateChange,
+                    onTaskDirChanged = onTaskDirChanged
                 )
             } else if (loading) {
                 Box(
@@ -599,7 +602,7 @@ fun MainScreen(
             onSave = { text ->
                 when (mode) {
                     is EditorMode.Add -> onSaveTask(text)
-                    is EditorMode.Edit -> onEditTask(mode.filename, text)
+                    is EditorMode.Edit -> onEditTask(mode.filename, mode.raw, text)
                 }
                 editorMode = null
             },

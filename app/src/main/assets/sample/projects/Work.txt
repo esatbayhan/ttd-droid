@@ -1,0 +1,10 @@
+(A) {{today}} Prepare Q3 budget forecast +Work @office due:{{+5d}}
+(B) {{today}} Send weekly status update +Work @email due:{{+1d}}
+(B) {{-3d}} Review vendor contracts +Work @office due:{{+1w}}
+(C) {{today}} Schedule 1:1 meetings +Work @office due:{{+2d}}
+(D) {{today}} Update project timeline +Work @email env:staging
+(E) {{-1w}} Finalize hiring decision +Work @office due:{{+3d}}
+(F) {{today}} Test deployment pipeline +Work @computer env:production
+(G) {{-2d}} Clean up Jira backlog +Work @office
+(H) {{today}} Write internal newsletter +Work @email due:{{+1w}}
+(I) {{-5d}} Analyze customer feedback survey +Work @office updated:{{-1d}}

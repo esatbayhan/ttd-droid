@@ -3,7 +3,6 @@ package dev.bayhan.ttd.droid.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -16,10 +15,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import dev.bayhan.ttd.droid.R
 import dev.bayhan.ttd.droid.task.Task
 import dev.bayhan.ttd.droid.ui.stripDateTokens
 import dev.bayhan.ttd.droid.ui.stripUpdatedToken
@@ -64,9 +61,10 @@ fun TaskRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top
     ) {
-        Checkbox(
-            checked = isDone,
-            onCheckedChange = { onToggleDone() }
+        PriorityCheckbox(
+            isDone = isDone,
+            priority = task.priority,
+            onToggle = { onToggleDone() }
         )
         Column(
             modifier = Modifier
@@ -74,36 +72,28 @@ fun TaskRow(
                 .padding(top = 8.dp)
                 .clickable(onClick = onClick, role = Role.Button)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                PriorityBadge(
-                    priority = if (isDone) null else task.priority,
-                    modifier = Modifier.padding(end = 8.dp)
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = annotatedDescription,
-                        maxLines = maxLines,
-                        overflow = TextOverflow.Ellipsis,
-                        color = textColor,
-                        textDecoration = textDecoration
-                    )
-                    val hasTags = task.tags.isNotEmpty() || task.projects.isNotEmpty() || task.contexts.isNotEmpty()
-                    if (hasTags) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            task.tags["due"]?.let {
-                                Text("due:$it", color = dueColor, style = MaterialTheme.typography.labelSmall)
-                            }
-                            task.tags["scheduled"]?.let {
-                                Text("scheduled:$it", color = scheduledColor, style = MaterialTheme.typography.labelSmall)
-                            }
-                            task.projects.forEach {
-                                Text("+$it", color = projectColor, style = MaterialTheme.typography.labelSmall)
-                            }
-                            task.contexts.forEach {
-                                Text("@$it", color = contextColor, style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
+            Text(
+                text = annotatedDescription,
+                maxLines = maxLines,
+                overflow = TextOverflow.Ellipsis,
+                color = textColor,
+                textDecoration = textDecoration
+            )
+            val hasTags = task.tags.isNotEmpty() || task.projects.isNotEmpty() || task.contexts.isNotEmpty()
+            if (hasTags) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    task.tags["due"]?.let {
+                        Text("due:$it", color = dueColor, style = MaterialTheme.typography.labelSmall)
+                    }
+                    task.tags["scheduled"]?.let {
+                        Text("scheduled:$it", color = scheduledColor, style = MaterialTheme.typography.labelSmall)
+                    }
+                    task.projects.forEach {
+                        Text("+$it", color = projectColor, style = MaterialTheme.typography.labelSmall)
+                    }
+                    task.contexts.forEach {
+                        Text("@$it", color = contextColor, style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

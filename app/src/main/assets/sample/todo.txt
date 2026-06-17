@@ -1,0 +1,105 @@
+(A) {{today}} Send project proposal to client +Work @email ref:PROJ-123 due:{{+5d}}
+(B) {{today}} Review quarterly budget report +Work @office due:{{+2d}}
+(B) {{today}} Schedule dentist appointment +Health @phone due:{{+3w}}
+(C) {{today}} Update portfolio website +Personal @computer due:{{+1w}}
+(C) {{today}} Buy groceries for dinner +Personal @home
+(D) {{-7d}} Organize garage sale flyers +GarageSale @home due:{{+2w}}
+(D) {{-7d}} Research vacation destinations +Personal @computer
+(E) {{today}} File expense reports +Work @email due:{{+1d}}
+(E) {{-3d}} Back up important files +Personal @computer scheduled:{{+1d}}
+(F) {{today}} Plan team building event +Work @office due:{{+2w}}
+(F) {{today}} Clean out fridge +Personal @home
+(G) {{-5d}} Fix bathroom faucet leak +Health @home scheduled:{{+3d}}
+(G) {{today}} Install new light fixture in hallway +Personal @home
+(H) {{-2d}} Draft press release +Work @email env:staging due:{{+4d}}
+(H) {{today}} Organize bookshelf by genre +Personal @home
+(I) {{today}} Prepare slides for conference talk +Work @office due:{{+1m}}
+(I) {{-10d}} Patch security vulnerabilities +OpenSource @computer ref:PROJ-456
+(J) {{today}} Write blog post about new API +OpenSource @computer
+(J) {{today}} Set up standing desk +Health @home due:{{+3d}}
+(K) {{-1w}} Run test suite before release +OpenSource @computer env:production due:{{+1d}}
+(K) {{today}} Prepare investor update deck +Work @email due:{{+1w}}
+(L) {{today}} Water indoor plants +Personal @home
+(L) {{-2d}} Return library books @home
+(M) {{today}} Coordinate with design team on mockups +Work @email due:{{+6d}}
+(M) {{today}} Meal prep for the week +Health @home
+(N) {{today}} Write unit tests for new module +OpenSource @computer ref:PROJ-123
+(N) {{-4d}} Review pull requests from contributors +OpenSource @computer
+(O) {{today}} Archive old email threads +Work @email
+(O) {{-1d}} Donate unused clothes +Personal @home
+(P) {{today}} Create pitch deck for idea +Personal @computer
+(P) {{today}} Validate accessibility compliance +Work @office due:{{+5d}}
+(Q) {{-3d}} Restructure database indexes +Work @computer env:staging
+(Q) {{today}} Sharpen kitchen knives +Personal @home
+(R) {{today}} Brainstorm product naming options +Work @office due:{{+1w}}
+(R) {{-1w}} Attend local meetup group +Personal @computer
+(S) {{today}} Call insurance about claim #4321 @phone +Health due:{{+2d}}
+(S) {{-2w}} Update README and changelog +OpenSource @computer
+(T) {{today}} Book flights for team offsite +Work @email due:{{+3w}}
+(T) {{today}} Test login flow on tablet device +OpenSource @computer
+(U) {{-1m}} Update bio page on website +Personal @computer
+(U) {{today}} Reserve conference room for workshop +Work @office due:{{+4d}}
+(V) {{today}} Migrate database to new cluster +Work @computer env:production due:{{+1m}}
+(V) {{-3d}} Format and lintage codebase +OpenSource @computer
+(W) {{today}} Define Q3 hiring plan +Work @office due:{{+2m}}
+(W) {{-5d}} Locate and fix memory leak +OpenSource @computer ref:PROJ-456
+(X) {{today}} Onboard new team member with walkthrough +Work @office due:{{+1d}}
+(X) {{-2w}} Consolidate duplicate utility functions +OpenSource @computer
+(Y) {{today}} Set OKRs for next quarter +Work @office due:{{+1w}}
+(Y) {{-6d}} Document API rate limits +OpenSource @computer
+(Z) {{today}} Recycle old electronics @home due:{{+1w}}
+(Z) {{-1w}} Archive stale branches +OpenSource @computer updated:{{-10d}}
+
+Overdue utility bill payment +Personal @email due:{{-1d}}
+Overdue library books return @home due:{{-2d}}
+Due today submit timesheet +Work @email due:{{today}}
+Due today water plants +Personal @home due:{{today}}
+Tomorrow call dentist to confirm +Health @phone due:{{+1d}}
+Tomorrow send follow-up to supplier +Work @email due:{{+1d}}
+This week finish onboarding doc +Work @office due:{{+5d}}
+This week update insurance details +Health @email due:{{+4d}}
+Next week plan team lunch +Work @office due:{{+1w}}
+Next month renew SSL certificates +OpenSource @computer due:{{+1m}}
+Next quarter draft roadmap +Work @office due:{{+3m}}
+Scheduled task publish newsletter today scheduled:{{today}}
+Scheduled task workout this afternoon +Health @home scheduled:{{today}}
+Scheduled check server logs +OpenSource @computer scheduled:{{+1d}}
+Scheduled start new book +Personal @home scheduled:{{+2d}}
+Starting task begin sprint planning +Work @office starting:{{+1d}}
+Starting task garden cleanup +Personal @home starting:{{+3d}}
+Updated task last week review goals +Work @office updated:{{-7d}}
+Updated task three days ago sort papers +Personal @home updated:{{-3d}}
+
+Double project +Work +Personal @office @computer due:{{+1w}}
+Double context @phone @email due:{{+3d}}
+Multi tag +Work @office @email env:staging ref:PROJ-123 due:{{+1w}}
+
+user@example.com verify email integration +OpenSource @computer
+1+1 equals 2 verify math rendering +Personal @computer
+duplicate due keys test +Work due:{{+2d}} due:{{+5d}}
+long description task that goes on and on to test how wrapping behaves in the task list view when task text exceeds a single line and requires multiple lines to display properly on a phone screen in portrait orientation +Personal @computer
+Unicode task with emoji description 🎉 +Personal @home
+lowercase priority (a) test lenient parsing @computer
+empty priority () test empty parens +Work
+Trailing whitespace test +Work @office    
+
+Normal task with creation date only
+Another unprioritized task with just a description @phone
+Task scheduled for this weekend scheduled:{{+3d}}
+Task starting next Monday starting:{{+2w}}
+Task with starting and due combo starting:{{+1d}} due:{{+5d}} +Work
+No priority task in Personal project +Personal
+No priority task in Health project +Health @home
+No priority in GarageSale +GarageSale @home
+Ref PROJ-999 in description +OpenSource ref:PROJ-999
+Cost high item +Work cost:high due:{{+1m}}
+Cost low item +Personal cost:low
+Env production deploy +Work env:production due:{{+1w}}
+Env staging test +Work env:staging scheduled:{{+2d}}
+Inbox item with no tags no priority no nothing
+Some task with description that mentions due: in plain text but not as a tag
+Completed task yesterday x {{-1d}} {{-2d}} Finished report +Work
+Completed task today x {{today}} {{today}} Sent email to client +Work @email
+Complete old task x {{-1m}} {{-2m}} Old completed project +Personal
+Complete with no completion date x Tax filing done +Work @office
+Done task with many tags x {{today}} {{-3d}} Refactored parser +OpenSource @computer ref:PROJ-123 env:production cost:low

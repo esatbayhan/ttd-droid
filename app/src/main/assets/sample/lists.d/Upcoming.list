@@ -1,0 +1,11 @@
+---
+name: Upcoming
+icon: 📆
+description: Tasks due in the next two weeks
+---
+due >= today + 3
+AND
+due <= today + 14
+
+sort by due asc
+group by due

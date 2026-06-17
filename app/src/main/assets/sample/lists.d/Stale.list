@@ -1,0 +1,14 @@
+---
+name: Stale
+icon: 🕐
+description: Tasks not reviewed in over a week
+---
+not done
+AND
+updated <= today - 7
+OR
+not done
+AND
+no updated
+
+sort by updated asc

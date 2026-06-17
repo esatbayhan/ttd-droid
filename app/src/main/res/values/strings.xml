@@ -94,7 +94,8 @@
     <string name="settings_change">Change</string>
     <string name="settings_disabled">Disabled</string>
     <string name="settings_version">Tasks</string>
-    <string name="settings_version_info">Version 1.0.0 — Spec v2.2.1</string>
+    <string name="settings_version_info">Version 0.1.0 — Spec v2.2.1</string>
+    <string name="settings_load_sample_data">Load Sample Data</string>
 
     <!-- Chip bar -->
     <string name="chip_reset_filters">Reset filters</string>
