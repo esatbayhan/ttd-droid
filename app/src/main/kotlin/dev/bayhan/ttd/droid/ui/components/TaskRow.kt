@@ -39,6 +39,7 @@ fun TaskRow(
     val scheduledColor = MaterialTheme.colorScheme.primary
     val projectColor = MaterialTheme.colorScheme.secondary
     val contextColor = MaterialTheme.colorScheme.tertiary
+    val tagColor = MaterialTheme.colorScheme.outline
 
     val textColor = if (isDone) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     else MaterialTheme.colorScheme.onSurface
@@ -59,7 +60,7 @@ fun TaskRow(
             .padding(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 8.dp)
             .then(if (highlighted) Modifier.background(MaterialTheme.colorScheme.primaryContainer) else Modifier),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top
+        verticalAlignment = Alignment.CenterVertically
     ) {
         PriorityCheckbox(
             isDone = isDone,
@@ -69,7 +70,6 @@ fun TaskRow(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(top = 8.dp)
                 .clickable(onClick = onClick, role = Role.Button)
         ) {
             Text(
@@ -83,11 +83,13 @@ fun TaskRow(
             if (hasTags) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    task.tags["due"]?.let {
-                        Text("due:$it", color = dueColor, style = MaterialTheme.typography.labelSmall)
-                    }
-                    task.tags["scheduled"]?.let {
-                        Text("scheduled:$it", color = scheduledColor, style = MaterialTheme.typography.labelSmall)
+                    task.tags.forEach { (key, value) ->
+                        val color = when (key) {
+                            "due" -> dueColor
+                            "scheduled", "starting" -> scheduledColor
+                            else -> tagColor
+                        }
+                        Text("$key:$value", color = color, style = MaterialTheme.typography.labelSmall)
                     }
                     task.projects.forEach {
                         Text("+$it", color = projectColor, style = MaterialTheme.typography.labelSmall)

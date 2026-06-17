@@ -34,7 +34,8 @@ object SampleDataSeeder {
                 } else {
                     content
                 }
-                val file = targetDir.createFile("text/plain", entry) ?: continue
+                val mimeType = if (entry.endsWith(".txt")) "text/plain" else "application/octet-stream"
+                val file = targetDir.createFile(mimeType, entry) ?: continue
                 context.contentResolver.openOutputStream(file.uri)?.use { stream ->
                     stream.write(resolved.toByteArray())
                 }

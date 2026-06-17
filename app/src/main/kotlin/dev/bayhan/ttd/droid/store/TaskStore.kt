@@ -225,6 +225,104 @@ class TaskStore(private val context: Context) {
         } catch (_: Exception) { null }
     }
 
+    fun createSmartList(groupPath: String, filename: String, raw: String): Boolean {
+        val fn = normalizedFilename(filename)
+        val rootDoc = rootUri?.let { DocumentFile.fromTreeUri(context, it) } ?: return false
+        return try {
+            val listsDir = getOrCreateListsDir(rootDoc) ?: return false
+            val targetDir = navigateOrCreatePath(listsDir, groupPath) ?: return false
+            val file = targetDir.createFile("application/octet-stream", fn) ?: return false
+            context.contentResolver.openOutputStream(file.uri)?.use { it.write(raw.toByteArray()) }
+            refreshSnapshot()
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun deleteSmartList(groupPath: String, filename: String): Boolean {
+        val rootDoc = rootUri?.let { DocumentFile.fromTreeUri(context, it) } ?: return false
+        return try {
+            val listsDir = rootDoc.listFiles().find { it.name == "lists.d" } ?: return false
+            val file = findFileInListsDir(listsDir, groupPath, filename) ?: return false
+            val result = file.delete()
+            if (result) refreshSnapshot()
+            result
+        } catch (_: Exception) { false }
+    }
+
+    fun createListDir(groupPath: String, dirName: String): Boolean {
+        val rootDoc = rootUri?.let { DocumentFile.fromTreeUri(context, it) } ?: return false
+        return try {
+            val listsDir = getOrCreateListsDir(rootDoc) ?: return false
+            val targetDir = navigateOrCreatePath(listsDir, groupPath) ?: return false
+            targetDir.createDirectory(dirName) != null
+        } catch (_: Exception) { false }
+    }
+
+    fun deleteListDir(groupPath: String, dirName: String): Boolean {
+        val rootDoc = rootUri?.let { DocumentFile.fromTreeUri(context, it) } ?: return false
+        return try {
+            val listsDir = rootDoc.listFiles().find { it.name == "lists.d" } ?: return false
+            val fullPath = if (groupPath.isEmpty()) dirName else "$groupPath/$dirName"
+            val dir = navigatePath(listsDir, fullPath) ?: return false
+            val result = dir.delete()
+            if (result) refreshSnapshot()
+            result
+        } catch (_: Exception) { false }
+    }
+
+    fun findSmartListFile(groupPath: String, filename: String): DocumentFile? {
+        val rootDoc = rootUri?.let { DocumentFile.fromTreeUri(context, it) } ?: return null
+        return try {
+            val listsDir = rootDoc.listFiles().find { it.name == "lists.d" } ?: return null
+            findFileInListsDir(listsDir, groupPath, filename)
+        } catch (_: Exception) { null }
+    }
+
+    fun smartListExists(groupPath: String, filename: String): Boolean {
+        return findSmartListFile(groupPath, filename) != null
+    }
+
+    private fun getOrCreateListsDir(rootDoc: DocumentFile): DocumentFile? {
+        return try {
+            rootDoc.listFiles().find { it.name == "lists.d" }
+        } catch (_: Exception) { null }
+            ?: rootDoc.createDirectory("lists.d")
+    }
+
+    private fun navigateOrCreatePath(listsDir: DocumentFile, groupPath: String): DocumentFile? {
+        if (groupPath.isEmpty()) return listsDir
+        var dir = listsDir
+        for (part in groupPath.split("/")) {
+            val existing = try {
+                dir.listFiles().find { it.isDirectory && it.name == part }
+            } catch (_: Exception) { null }
+            dir = existing ?: dir.createDirectory(part) ?: return null
+        }
+        return dir
+    }
+
+    private fun navigatePath(listsDir: DocumentFile, groupPath: String): DocumentFile? {
+        if (groupPath.isEmpty()) return listsDir
+        var dir = listsDir
+        for (part in groupPath.split("/")) {
+            dir = try {
+                dir.listFiles().find { it.isDirectory && it.name == part }
+            } catch (_: Exception) { null } ?: return null
+        }
+        return dir
+    }
+
+    private fun normalizedFilename(filename: String): String =
+        if (filename.endsWith(".list")) filename else "$filename.list"
+
+    private fun findFileInListsDir(listsDir: DocumentFile, groupPath: String, filename: String): DocumentFile? {
+        val dir = navigatePath(listsDir, groupPath) ?: return null
+        val fn = normalizedFilename(filename)
+        return try {
+            dir.listFiles().find { !it.isDirectory && it.name == fn }
+        } catch (_: Exception) { null }
+    }
+
     fun loadCachedTasks(): List<Task> {
         val file = java.io.File(context.filesDir, "tasks.cache")
         return try {

@@ -1,6 +1,7 @@
 package dev.bayhan.ttd.droid.ui
 
 import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -9,6 +10,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
@@ -25,9 +28,22 @@ import dev.bayhan.ttd.droid.config.NotifyConfig
 import dev.bayhan.ttd.droid.smartlist.LoadedSmartList
 import dev.bayhan.ttd.droid.smartlist.SmartListEval
 import dev.bayhan.ttd.droid.task.Task
+import dev.bayhan.ttd.droid.ui.components.DeleteConfirmationDialog
+import dev.bayhan.ttd.droid.ui.components.NewDirectoryDialog
+import dev.bayhan.ttd.droid.ui.components.SmartListEditorSheet
 import dev.bayhan.ttd.droid.ui.components.SmartListSourceView
 import dev.bayhan.ttd.droid.ui.components.SortSheet
 import kotlinx.coroutines.launch
+
+sealed class SmartListEditorMode {
+    data class Create(val defaultGroup: String = "") : SmartListEditorMode()
+    data class Edit(val groupPath: String, val filename: String, val raw: String, val list: dev.bayhan.ttd.droid.smartlist.SmartList) : SmartListEditorMode()
+}
+
+sealed class DeleteTarget {
+    data class SmartList(val groupPath: String, val filename: String, val name: String) : DeleteTarget()
+    data class Directory(val path: String, val name: String) : DeleteTarget()
+}
 
 sealed interface DrawerItem {
     data class SmartList(val name: String, val group: String?, val fileName: String, val list: dev.bayhan.ttd.droid.smartlist.SmartList) : DrawerItem
@@ -70,7 +86,11 @@ fun MainScreen(
     onShowTaskCountsChange: (Boolean) -> Unit = {},
     hideUpdatedDate: Boolean = true,
     onHideUpdatedDateChange: (Boolean) -> Unit = {},
-    onTaskDirChanged: ((Uri) -> Unit)? = null
+    onTaskDirChanged: ((Uri) -> Unit)? = null,
+    onSaveSmartList: (filename: String, groupPath: String, raw: String) -> Unit = { _, _, _ -> },
+    onDeleteSmartList: (groupPath: String, filename: String) -> Unit = { _, _ -> },
+    onCreateDirectory: (name: String, parentPath: String) -> Unit = { _, _ -> },
+    onDeleteDirectory: (groupPath: String, dirName: String) -> Unit = { _, _ -> }
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -92,7 +112,7 @@ fun MainScreen(
     var autoSelectDone by remember { mutableStateOf(selectedItem != null) }
     var showSettings by remember { mutableStateOf(false) }
     var editorMode by remember { mutableStateOf<EditorMode?>(null) }
-    var highlightFilename by remember { mutableStateOf<String?>(null) }
+    var highlightTaskKey by remember { mutableStateOf<String?>(null) }
     val expandedGroups = remember { mutableStateMapOf<String, Boolean>() }
     var projectsExpanded by remember { mutableStateOf(true) }
     var contextsExpanded by remember { mutableStateOf(true) }
@@ -100,6 +120,12 @@ fun MainScreen(
     var sortField by remember { mutableStateOf("default") }
     var sortAsc by remember { mutableStateOf(true) }
     var showSortSheet by remember { mutableStateOf(false) }
+    var showCreateMenu by remember { mutableStateOf(false) }
+    var listEditorMode by remember { mutableStateOf<SmartListEditorMode?>(null) }
+    var showNewDirectoryDialog by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<DeleteTarget?>(null) }
+    var selectedGroupForCreate by remember { mutableStateOf("") }
+    var collisionPending by remember { mutableStateOf<Triple<String, String, String>?>(null) }
 
     val groupedSmartLists = remember(smartLists) {
         smartLists.groupBy({ it.group }, { it }).toSortedMap()
@@ -203,10 +229,10 @@ fun MainScreen(
         onNeedsDoneTasks?.invoke(needsDoneTasks)
     }
 
-    LaunchedEffect(highlightFilename) {
-        if (highlightFilename != null) {
+    LaunchedEffect(highlightTaskKey) {
+        if (highlightTaskKey != null) {
             kotlinx.coroutines.delay(2000L)
-            highlightFilename = null
+            highlightTaskKey = null
         }
     }
 
@@ -231,10 +257,55 @@ fun MainScreen(
         drawerContent = {
             ModalDrawerSheet {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(stringResource(R.string.nav_tasks),
-                        style = MaterialTheme.typography.headlineSmall,
-                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(stringResource(R.string.nav_tasks),
+                            style = MaterialTheme.typography.headlineSmall,
+                            modifier = Modifier.padding(vertical = 8.dp))
+                        Box {
+                            IconButton(onClick = { showCreateMenu = true }) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = "Create",
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showCreateMenu,
+                                onDismissRequest = { showCreateMenu = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("New Smart List") },
+                                    onClick = {
+                                        showCreateMenu = false
+                                        selectedGroupForCreate = when {
+                                            selectedItem is DrawerItem.SmartList ->
+                                                (selectedItem as DrawerItem.SmartList).group ?: ""
+                                            selectedItem is DrawerItem.Directory ->
+                                                (selectedItem as DrawerItem.Directory).path
+                                            else -> ""
+                                        }
+                                        listEditorMode = SmartListEditorMode.Create(selectedGroupForCreate)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("New Directory") },
+                                    onClick = {
+                                        showCreateMenu = false
+                                        selectedGroupForCreate = when {
+                                            selectedItem is DrawerItem.Directory ->
+                                                (selectedItem as DrawerItem.Directory).path
+                                            else -> ""
+                                        }
+                                        showNewDirectoryDialog = true
+                                    }
+                                )
+                            }
+                        }
+                    }
 
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp))
 
@@ -259,13 +330,11 @@ fun MainScreen(
                                 }
                             },
                             label = { Text(loaded.list.name) },
-                                    badge = {
-                                        val count = tasks.count { SmartListEval.matches(it, loaded.list) }
-                                        Text(
-                                            "${count}",
+                            badge = {
+                                val count = tasks.count { SmartListEval.matches(it, loaded.list) }
+                                Text("${count}",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             },
                             modifier = Modifier.padding(horizontal = 12.dp)
                         )
@@ -287,23 +356,20 @@ fun MainScreen(
                                 scope.launch { drawerState.close() }
                             },
                             icon = {
-                                IconButton(onClick = {
-                                    expandedGroups[group] = !isExpanded
-                                }) {
-                                    Icon(
-                                        if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
-                                        contentDescription = if (isExpanded) stringResource(R.string.nav_collapse) else stringResource(R.string.nav_expand)
-                                    )
-                                }
+                                Icon(
+                                    if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+                                    contentDescription = if (isExpanded) stringResource(R.string.nav_collapse) else stringResource(R.string.nav_expand),
+                                    modifier = Modifier.clickable {
+                                        expandedGroups[group] = !isExpanded
+                                    }
+                                )
                             },
                             label = { Text(group) },
                             badge = {
                                 val count = countTasksInDir(group, smartLists, tasks)
-                                Text(
-                                    "${count}",
+                                Text("${count}",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             },
                             modifier = Modifier.padding(horizontal = 12.dp)
                         )
@@ -312,33 +378,33 @@ fun MainScreen(
                             for ((subGroup, lists) in groupedSmartLists) {
                                 if (subGroup == group || subGroup.startsWith("$group/")) {
                                     for (loaded in lists.sortedBy { it.fileName }) {
-                                        NavigationDrawerItem(
-                                            selected = selectedItem is DrawerItem.SmartList
-                                                && (selectedItem as DrawerItem.SmartList).name == loaded.list.name
-                                                && (selectedItem as DrawerItem.SmartList).group == subGroup
-                                                && !showSettings,
-                                            onClick = {
-                                                selectedItem = DrawerItem.SmartList(loaded.list.name, subGroup, loaded.fileName, loaded.list)
-                                                showSettings = false
-                                                scope.launch { drawerState.close() }
-                                            },
-                                            icon = {
-                                                val iconStr = loaded.list.icon
-                                                if (iconStr != null) {
-                                                    Text(iconStr)
-                                                } else {
-                                                    Icon(Icons.Default.Menu, contentDescription = loaded.list.name)
-                                                }
-                                            },
-                                            label = { Text(loaded.list.name) },
-                                            badge = {
-                                                val count = tasks.count { SmartListEval.matches(it, loaded.list) }
-                                                Text("${count}",
-                                                    style = MaterialTheme.typography.labelSmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                            },
-                                            modifier = Modifier.padding(start = 28.dp, end = 12.dp)
-                                        )
+                                            NavigationDrawerItem(
+                                                selected = selectedItem is DrawerItem.SmartList
+                                                    && (selectedItem as DrawerItem.SmartList).name == loaded.list.name
+                                                    && (selectedItem as DrawerItem.SmartList).group == subGroup
+                                                    && !showSettings,
+                                                onClick = {
+                                                    selectedItem = DrawerItem.SmartList(loaded.list.name, subGroup, loaded.fileName, loaded.list)
+                                                    showSettings = false
+                                                    scope.launch { drawerState.close() }
+                                                },
+                                                icon = {
+                                                    val iconStr = loaded.list.icon
+                                                    if (iconStr != null) {
+                                                        Text(iconStr)
+                                                    } else {
+                                                        Icon(Icons.Default.Menu, contentDescription = loaded.list.name)
+                                                    }
+                                                },
+                                                label = { Text(loaded.list.name) },
+                                                badge = {
+                                                    val count = tasks.count { SmartListEval.matches(it, loaded.list) }
+                                                    Text("${count}",
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                },
+                                                modifier = Modifier.padding(start = 28.dp, end = 12.dp)
+                                            )
                                     }
                                 }
                             }
@@ -354,13 +420,12 @@ fun MainScreen(
                             selected = false,
                             onClick = { projectsExpanded = !projectsExpanded },
                             icon = {
-                                IconButton(onClick = { projectsExpanded = !projectsExpanded }) {
                                     Icon(
                                         if (projectsExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
-                                        contentDescription = if (projectsExpanded) stringResource(R.string.nav_collapse) else stringResource(R.string.nav_expand)
+                                        contentDescription = if (projectsExpanded) stringResource(R.string.nav_collapse) else stringResource(R.string.nav_expand),
+                                        modifier = Modifier.clickable { projectsExpanded = !projectsExpanded }
                                     )
-                            }
-                        },
+                            },
                         label = { Text(stringResource(R.string.nav_projects)) },
                         badge = {
                             Text("${allProjects.size}",
@@ -403,13 +468,12 @@ fun MainScreen(
                             selected = false,
                             onClick = { contextsExpanded = !contextsExpanded },
                             icon = {
-                                IconButton(onClick = { contextsExpanded = !contextsExpanded }) {
                                     Icon(
                                         if (contextsExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
-                                        contentDescription = if (contextsExpanded) stringResource(R.string.nav_collapse) else stringResource(R.string.nav_expand)
+                                        contentDescription = if (contextsExpanded) stringResource(R.string.nav_collapse) else stringResource(R.string.nav_expand),
+                                        modifier = Modifier.clickable { contextsExpanded = !contextsExpanded }
                                     )
-                            }
-                        },
+                            },
                         label = { Text(stringResource(R.string.nav_contexts)) },
                         badge = {
                             Text("${allContexts.size}",
@@ -462,7 +526,7 @@ fun MainScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
-            }
+                }
         }
     ) {
         Scaffold(
@@ -486,6 +550,32 @@ fun MainScreen(
                         },
                         actions = {
                             if (selectedItem is DrawerItem.SmartList) {
+                                val smartItem = selectedItem as DrawerItem.SmartList
+                                val loaded = smartLists.find {
+                                    it.fileName == smartItem.fileName && it.group == (smartItem.group ?: "")
+                                }
+                                if (loaded != null) {
+                                    IconButton(onClick = {
+                                        listEditorMode = SmartListEditorMode.Edit(
+                                            loaded.group, loaded.fileName, loaded.raw, loaded.list
+                                        )
+                                    }) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = stringResource(R.string.action_edit_list)
+                                        )
+                                    }
+                                    IconButton(onClick = {
+                                        deleteTarget = DeleteTarget.SmartList(
+                                            loaded.group, loaded.fileName, loaded.list.name
+                                        )
+                                    }) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = stringResource(R.string.action_delete_list)
+                                        )
+                                    }
+                                }
                                 IconButton(onClick = { showSmartListSource = !showSmartListSource }) {
                                     Icon(
                                         Icons.Default.Code,
@@ -585,7 +675,7 @@ fun MainScreen(
                     showFullTaskText = showFullTaskText,
                     hideDateValues = hideDateValuesInList,
                     hideUpdatedDate = hideUpdatedDate,
-                    highlightFilename = highlightFilename,
+                    highlightTaskKey = highlightTaskKey,
                     groupDirectives = groupDirectives,
                     sortField = sortField,
                     sortAsc = sortAsc
@@ -611,11 +701,12 @@ fun MainScreen(
             hideUpdatedDate = hideUpdatedDate,
             smartLists = smartLists,
             onNavigateToItem = { item ->
-                val filename = (editorMode as? EditorMode.Edit)?.filename
+                val mode = editorMode as? EditorMode.Edit
+                val taskKey = mode?.let { "${it.filename}\t${it.raw}" }
                 editorMode = null
                 selectedItem = item
                 showSettings = false
-                highlightFilename = filename
+                highlightTaskKey = taskKey
             }
         )
     }
@@ -629,6 +720,102 @@ fun MainScreen(
                 sortField = field
                 sortAsc = asc
                 showSortSheet = false
+            }
+        )
+    }
+
+    listEditorMode?.let { mode ->
+        val allGroups = remember(groupedSmartLists) {
+            groupedSmartLists.keys.filter { it.isNotEmpty() }.sorted()
+        }
+        SmartListEditorSheet(
+            initialList = when (mode) {
+                is SmartListEditorMode.Edit -> mode.list
+                is SmartListEditorMode.Create -> null
+            },
+            initialRaw = when (mode) {
+                is SmartListEditorMode.Edit -> mode.raw
+                is SmartListEditorMode.Create -> null
+            },
+            initialFilename = when (mode) {
+                is SmartListEditorMode.Edit -> mode.filename
+                else -> ""
+            },
+            groupOptions = allGroups,
+            defaultGroup = when (mode) {
+                is SmartListEditorMode.Edit -> mode.groupPath
+                is SmartListEditorMode.Create -> mode.defaultGroup
+            },
+            onDismiss = { listEditorMode = null },
+            onSave = { filename, groupPath, raw ->
+                val isEdit = mode is SmartListEditorMode.Edit
+                if (isEdit) {
+                    listEditorMode = null
+                    onSaveSmartList(filename, groupPath, raw)
+                } else {
+                    collisionPending = Triple(filename, groupPath, raw)
+                }
+            }
+        )
+    }
+
+    if (showNewDirectoryDialog) {
+        val allGroups = remember(groupedSmartLists) {
+            groupedSmartLists.keys.filter { it.isNotEmpty() }.sorted()
+        }
+        NewDirectoryDialog(
+            parentOptions = allGroups,
+            defaultParent = selectedGroupForCreate,
+            onDismiss = { showNewDirectoryDialog = false },
+            onCreate = { name, parentPath ->
+                showNewDirectoryDialog = false
+                onCreateDirectory(name, parentPath)
+            }
+        )
+    }
+
+    deleteTarget?.let { target ->
+        when (target) {
+            is DeleteTarget.SmartList -> DeleteConfirmationDialog(
+                itemName = target.name,
+                itemPath = "lists.d/${if (target.groupPath.isNotEmpty()) "${target.groupPath}/" else ""}${target.filename}",
+                isDirectory = false,
+                onDismiss = { deleteTarget = null },
+                onConfirm = {
+                    deleteTarget = null
+                    onDeleteSmartList(target.groupPath, target.filename)
+                }
+            )
+            is DeleteTarget.Directory -> DeleteConfirmationDialog(
+                itemName = target.name,
+                itemPath = "lists.d/${target.path}/",
+                isDirectory = true,
+                onDismiss = { deleteTarget = null },
+                onConfirm = {
+                    deleteTarget = null
+                    onDeleteDirectory(target.path, target.name)
+                }
+            )
+        }
+    }
+
+    collisionPending?.let { (filename, groupPath, raw) ->
+        AlertDialog(
+            onDismissRequest = { collisionPending = null },
+            title = { Text("File already exists?") },
+            text = { Text("A list named \"$filename\" may already exist in this group.\n\nOverwrite it?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        collisionPending = null
+                        listEditorMode = null
+                        onSaveSmartList(filename, groupPath, raw)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) { Text("Overwrite") }
+            },
+            dismissButton = {
+                TextButton(onClick = { collisionPending = null }) { Text("Cancel") }
             }
         )
     }

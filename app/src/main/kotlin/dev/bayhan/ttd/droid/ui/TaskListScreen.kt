@@ -46,7 +46,7 @@ fun TaskListContent(
     showFullTaskText: Boolean = false,
     hideDateValues: Boolean = false,
     hideUpdatedDate: Boolean = true,
-    highlightFilename: String? = null,
+    highlightTaskKey: String? = null,
     groupDirectives: List<Directive> = emptyList(),
     sortField: String = "default",
     sortAsc: Boolean = true
@@ -190,7 +190,7 @@ fun TaskListContent(
                         maxLines = if (showFullTaskText) Int.MAX_VALUE else 2,
                         hideDateValues = hideDateValues,
                         hideUpdatedDate = hideUpdatedDate,
-                        highlighted = highlightFilename != null && task.filename == highlightFilename
+                        highlighted = highlightTaskKey != null && taskKey(task) == highlightTaskKey
                     )
                 }
             }

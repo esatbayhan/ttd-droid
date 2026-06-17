@@ -17,10 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.bayhan.ttd.droid.R
 
@@ -71,34 +68,13 @@ private fun buildListHighlightedText(
     tertiary: Color,
     error: Color,
     outlineVariant: Color
-) = buildAnnotatedString {
-    val delimStyle = SpanStyle(color = outlineVariant)
-    val commentStyle = SpanStyle(color = outlineVariant)
-    val keywordStyle = SpanStyle(color = primary, fontWeight = FontWeight.SemiBold)
-    val operatorStyle = SpanStyle(color = error)
-    val dateStyle = SpanStyle(color = secondary)
-    val directiveStyle = SpanStyle(color = tertiary, fontWeight = FontWeight.Bold)
-    val orStyle = SpanStyle(color = error, fontWeight = FontWeight.Bold)
-    val templateStyle = SpanStyle(color = secondary)
-
-    append(raw)
-
-    fun addPattern(regex: Regex, style: SpanStyle) {
-        for (match in regex.findAll(raw)) {
-            addStyle(style, match.range.first, match.range.last + 1)
-        }
-    }
-
-    addPattern(Regex("^---", RegexOption.MULTILINE), delimStyle)
-    addPattern(Regex("""^\s*#.*""", RegexOption.MULTILINE), commentStyle)
-    addPattern(Regex("""\b(due|scheduled|starting|updated|creation_date|priority|project|context|description)\b"""), keywordStyle)
-    addPattern(Regex("""\b(includes|excludes|above|below|has|no)\b"""), operatorStyle)
-    addPattern(Regex(""">=|<=|!=|[=<>]"""), operatorStyle)
-    addPattern(Regex("""not done"""), operatorStyle)
-    addPattern(Regex("""\d{4}-\d{2}-\d{2}"""), dateStyle)
-    addPattern(Regex("""\{\{dir(?::\d+)?\}\}"""), templateStyle)
-    addPattern(Regex("^(sort by|group by|prefill)", RegexOption.MULTILINE), directiveStyle)
-    addPattern(Regex("""^OR$""", RegexOption.MULTILINE), orStyle)
-    addPattern(Regex("^(name|icon|description|order):", RegexOption.MULTILINE), directiveStyle)
-    addPattern(Regex("""(?<=priority )[A-Z]\b"""), operatorStyle)
-}
+) = buildListHighlightedText(raw, ListSyntaxColors(
+    delim = outlineVariant,
+    comment = outlineVariant,
+    keyword = primary,
+    operator = error,
+    date = secondary,
+    directive = tertiary,
+    orKeyword = error,
+    template = secondary
+))

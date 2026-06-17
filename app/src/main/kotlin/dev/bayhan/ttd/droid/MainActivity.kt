@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         store = TaskStore(this)
         isConfigured = AppConfig.isConfigured(this)
@@ -225,6 +227,30 @@ class MainActivity : ComponentActivity() {
                             isConfigured = true
                             refresh()
                             WidgetUpdateWorker.enqueue(this@MainActivity)
+                        },
+                        onSaveSmartList = { filename, groupPath, raw ->
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                store.createSmartList(groupPath, filename, raw)
+                                refresh()
+                            }
+                        },
+                        onDeleteSmartList = { groupPath, filename ->
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                store.deleteSmartList(groupPath, filename)
+                                refresh()
+                            }
+                        },
+                        onCreateDirectory = { name, parentPath ->
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                store.createListDir(parentPath, name)
+                                refresh()
+                            }
+                        },
+                        onDeleteDirectory = { groupPath, dirName ->
+                            lifecycleScope.launch(Dispatchers.IO) {
+                                store.deleteListDir(groupPath, dirName)
+                                refresh()
+                            }
                         }
                     )
                 }
@@ -294,7 +320,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun SetupScreen(onChooseDir: () -> Unit) {
-    Surface(modifier = Modifier.fillMaxSize()) {
+    Surface(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
         Column(
             modifier = Modifier.fillMaxSize().padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,

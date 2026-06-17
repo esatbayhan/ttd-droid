@@ -22,6 +22,8 @@
     <string name="action_show_tasks">Show tasks</string>
     <string name="action_show_list_source">Show list source</string>
     <string name="action_add_task">Add task</string>
+    <string name="action_edit_list">Edit list</string>
+    <string name="action_delete_list">Delete list</string>
 
     <!-- Task list -->
     <string name="task_list_empty">No tasks</string>
