@@ -191,6 +191,13 @@ fun MainScreen(
         }
     }
 
+    val sortDirectives = remember(selectedItem) {
+        when (val item = selectedItem) {
+            is DrawerItem.SmartList -> item.list.sorts
+            else -> emptyList()
+        }
+    }
+
     val title = when (val item = selectedItem) {
         is DrawerItem.SmartList -> {
             val icon = item.list.icon
@@ -677,6 +684,7 @@ fun MainScreen(
                     hideUpdatedDate = hideUpdatedDate,
                     highlightTaskKey = highlightTaskKey,
                     groupDirectives = groupDirectives,
+                    sortDirectives = sortDirectives,
                     sortField = sortField,
                     sortAsc = sortAsc
                 )

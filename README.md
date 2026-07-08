@@ -18,6 +18,12 @@ Built with Kotlin and Jetpack Compose. Targets Android 14+ (minSdk 34).
 - Due date and scheduled date notifications
 - Home screen widget showing today's tasks
 
+## Screenshots
+
+| | | | |
+|-|-|-|-|
+| ![](media/1.png) | ![](media/2.png) | ![](media/3.png) | ![](media/4.png) |
+
 ## What it doesn't do
 
 - No cloud sync built in — use Syncthing (see below)

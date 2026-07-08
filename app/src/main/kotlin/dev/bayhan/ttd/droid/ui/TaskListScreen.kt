@@ -48,10 +48,14 @@ fun TaskListContent(
     hideUpdatedDate: Boolean = true,
     highlightTaskKey: String? = null,
     groupDirectives: List<Directive> = emptyList(),
+    sortDirectives: List<Directive> = emptyList(),
     sortField: String = "default",
     sortAsc: Boolean = true
 ) {
-    val sorted = remember(tasks) { TaskQuery.defaultSort(tasks) }
+    val sorted = remember(tasks, sortDirectives) {
+        val base = TaskQuery.defaultSort(tasks)
+        if (sortDirectives.isNotEmpty()) SmartListEval.sort(base, sortDirectives) else base
+    }
     var selectedProjects by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedContexts by remember { mutableStateOf<Set<String>>(emptySet()) }
     val snackbarHostState = remember { SnackbarHostState() }
@@ -81,18 +85,20 @@ fun TaskListContent(
         toggleJobs.clear()
     }
 
-    val filtered = remember(sorted, selectedProjects, selectedContexts, sortField, sortAsc) {
+    val filtered = remember(sorted, selectedProjects, selectedContexts, sortField, sortAsc, sortDirectives) {
         var result = sorted.filter { task ->
             (selectedProjects.isEmpty() || selectedProjects.all { it in task.projects }) &&
             (selectedContexts.isEmpty() || selectedContexts.all { it in task.contexts })
         }
-        result = when (sortField) {
-            "priority" -> result.sortedBy { it.priority ?: 'Z' }
-            "date" -> result.sortedBy { it.creationDate ?: "" }
-            "description" -> result.sortedBy { it.description }
-            else -> result
+        if (sortDirectives.isEmpty()) {
+            result = when (sortField) {
+                "priority" -> result.sortedBy { it.priority ?: 'Z' }
+                "date" -> result.sortedBy { it.creationDate ?: "" }
+                "description" -> result.sortedBy { it.description }
+                else -> result
+            }
+            if (!sortAsc) result = result.reversed()
         }
-        if (!sortAsc) result = result.reversed()
         result
     }
 
