@@ -12,6 +12,21 @@ import dev.bayhan.ttd.droid.smartlist.SmartListSerializer
 
 enum class EditorTab { FORM, CODE }
 
+internal fun initialSmartListFormState(initialList: SmartList?, initialRaw: String?): SmartListFormState {
+    val list = initialRaw?.let { SmartListParser.parse(it) } ?: initialList ?: SmartList(name = "")
+    val state = SmartListFormState()
+    state.icon = list.icon ?: ""
+    state.name = list.name
+    state.description = list.description ?: ""
+    state.conditions.clear()
+    list.conditions.forEach { block -> state.conditions.add(FilterBlock(block.conditions)) }
+    if (state.conditions.isEmpty()) state.conditions.add(FilterBlock(emptyList()))
+    state.sorts.addAll(list.sorts)
+    state.groups.addAll(list.groups)
+    state.prefills.addAll(list.prefills)
+    return state
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SmartListEditorSheet(
@@ -29,19 +44,8 @@ fun SmartListEditorSheet(
     var codeRaw by remember {
         mutableStateOf(initialRaw ?: SmartListSerializer.serialize(initialList ?: SmartList(name = "")))
     }
-    val formState = remember(initialList) {
-        val list = initialList ?: SmartList(name = "")
-        val state = SmartListFormState()
-        state.icon = list.icon ?: ""
-        state.name = list.name
-        state.description = list.description ?: ""
-        state.conditions.clear()
-        list.conditions.forEach { block -> state.conditions.add(FilterBlock(block.conditions)) }
-        if (state.conditions.isEmpty()) state.conditions.add(FilterBlock(emptyList()))
-        state.sorts.addAll(list.sorts)
-        state.groups.addAll(list.groups)
-        state.prefills.addAll(list.prefills)
-        state
+    val formState = remember(initialList, initialRaw) {
+        initialSmartListFormState(initialList, initialRaw)
     }
     var showFilenameError by remember { mutableStateOf(false) }
 

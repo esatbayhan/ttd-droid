@@ -1,13 +1,13 @@
 package dev.bayhan.ttd.droid.smartlist
 
 import dev.bayhan.ttd.droid.task.Task
+import dev.bayhan.ttd.droid.task.TaskDateTime
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
+import java.time.LocalTime
 
 object SmartListEval {
 
     fun matches(task: Task, list: SmartList): Boolean {
-        if (list.conditions.isEmpty()) return true
         return list.conditions.any { block ->
             block.conditions.all { condition -> evaluateCondition(task, condition) }
         }
@@ -19,6 +19,7 @@ object SmartListEval {
             is PriorityCondition -> evaluatePriority(task, condition)
             is TextCondition -> evaluateText(task, condition)
             is ExistsCondition -> evaluateExists(task, condition)
+            is TimeExistsCondition -> evaluateTimeExists(task, condition)
             is DateCondition -> evaluateDate(task, condition)
         }
     }
@@ -65,46 +66,47 @@ object SmartListEval {
         return if (cond.has) exists else !exists
     }
 
+    private fun dateValue(task: Task, field: DateField): String? = when (field) {
+        DateField.DUE -> task.tags["due"]
+        DateField.SCHEDULED -> task.tags["scheduled"]
+        DateField.STARTING -> task.tags["starting"]
+        DateField.UPDATED -> task.tags["updated"]
+        DateField.CREATION_DATE -> task.creationDate
+    }
+
+    private fun evaluateTimeExists(task: Task, cond: TimeExistsCondition): Boolean {
+        val parsed = dateValue(task, cond.field)?.let(TaskDateTime::parse) ?: return false
+        return (parsed.time != null) == cond.has
+    }
+
     private fun evaluateDate(task: Task, cond: DateCondition): Boolean {
-        val dateStr = when (cond.field) {
-            DateField.DUE -> task.tags["due"]
-            DateField.SCHEDULED -> task.tags["scheduled"]
-            DateField.STARTING -> task.tags["starting"]
-            DateField.UPDATED -> task.tags["updated"]
-            DateField.CREATION_DATE -> task.creationDate
-        } ?: return false
+        val taskValue = dateValue(task, cond.field)?.let(TaskDateTime::parse) ?: return false
+        val baseDate = when (cond.value.anchor) {
+            DateAnchor.TODAY -> LocalDate.now()
+            DateAnchor.ABSOLUTE -> cond.value.anchorDate?.let(LocalDate::parse) ?: return false
+        }.plusDays(cond.value.offset.toLong())
 
-        val taskDate = try {
-            LocalDate.parse(dateStr)
-        } catch (_: Exception) {
-            return false
+        val comparison = if (cond.value.anchorTime == null) {
+            taskValue.date.compareTo(baseDate)
+        } else {
+            val taskDateTime = taskValue.date.atTime(taskValue.time ?: LocalTime.MIDNIGHT)
+            val anchorDateTime = baseDate.atTime(LocalTime.parse(cond.value.anchorTime))
+            taskDateTime.compareTo(anchorDateTime)
         }
-        val today = LocalDate.now()
-
-        val threshold = when (cond.value.anchor) {
-            DateAnchor.TODAY -> today.plusDays(cond.value.offset.toLong())
-            DateAnchor.ABSOLUTE -> {
-                val baseDate = cond.value.anchorDate?.let {
-                    try {
-                        LocalDate.parse(it)
-                    } catch (_: Exception) {
-                        null
-                    }
-                } ?: today
-                baseDate.plusDays(cond.value.offset.toLong())
-            }
-        }
-
-        val diff = ChronoUnit.DAYS.between(threshold, taskDate)
 
         return when (cond.op) {
-            CompareOp.LT -> diff < 0
-            CompareOp.LTE -> diff <= 0
-            CompareOp.GT -> diff > 0
-            CompareOp.GTE -> diff >= 0
-            CompareOp.EQ -> diff == 0L
-            CompareOp.NEQ -> diff != 0L
+            CompareOp.LT -> comparison < 0
+            CompareOp.LTE -> comparison <= 0
+            CompareOp.GT -> comparison > 0
+            CompareOp.GTE -> comparison >= 0
+            CompareOp.EQ -> comparison == 0
+            CompareOp.NEQ -> comparison != 0
         }
+    }
+
+    private fun sortableDate(raw: String?): String {
+        val value = raw?.let(TaskDateTime::parse) ?: return ""
+        return value.date.atTime(value.time ?: LocalTime.MIDNIGHT).toString()
     }
 
     fun sort(tasks: List<Task>, directives: List<Directive>): List<Task> {
@@ -121,11 +123,11 @@ object SmartListEval {
         val comp: Comparator<Task> = when (field) {
             "priority" -> compareBy { it.priority ?: 'Z' + 1 }
             "done" -> compareBy { it.done }
-            "creation_date" -> compareBy { it.creationDate ?: "" }
-            "due" -> compareBy { it.tags["due"] ?: "" }
-            "scheduled" -> compareBy { it.tags["scheduled"] ?: "" }
-            "starting" -> compareBy { it.tags["starting"] ?: "" }
-            "updated" -> compareBy { it.tags["updated"] ?: "" }
+            "creation_date" -> compareBy { sortableDate(it.creationDate) }
+            "due" -> compareBy { sortableDate(it.tags["due"]) }
+            "scheduled" -> compareBy { sortableDate(it.tags["scheduled"]) }
+            "starting" -> compareBy { sortableDate(it.tags["starting"]) }
+            "updated" -> compareBy { sortableDate(it.tags["updated"]) }
             "description" -> compareBy { it.description }
             "project" -> compareBy { it.projects.firstOrNull() ?: "" }
             "context" -> compareBy { it.contexts.firstOrNull() ?: "" }
@@ -144,20 +146,26 @@ object SmartListEval {
                 "context" -> task.contexts.firstOrNull() ?: "No Context"
                 "priority" -> task.priority?.toString() ?: "No Priority"
                 "done" -> if (task.done) "Done" else "Open"
-                "due" -> task.tags["due"] ?: "No Due Date"
-                "scheduled" -> task.tags["scheduled"] ?: "Not Scheduled"
-                "starting" -> task.tags["starting"] ?: "Not Starting"
-                "updated" -> task.tags["updated"] ?: "Not Updated"
-                "creation_date" -> task.creationDate ?: "No Creation Date"
+                "due" -> task.tags["due"]?.let(TaskDateTime::datePart) ?: "No Due Date"
+                "scheduled" -> task.tags["scheduled"]?.let(TaskDateTime::datePart) ?: "Not Scheduled"
+                "starting" -> task.tags["starting"]?.let(TaskDateTime::datePart) ?: "Not Starting"
+                "updated" -> task.tags["updated"]?.let(TaskDateTime::datePart) ?: "Not Updated"
+                "creation_date" -> task.creationDate?.let(TaskDateTime::datePart) ?: "No Creation Date"
                 "description" -> task.description.firstOrNull()?.toString() ?: ""
                 else -> ""
             }
         }
+        val ordered = when (dir.field) {
+            "due", "scheduled", "starting", "updated", "creation_date" -> grouped.mapValues { (_, values) ->
+                values.sortedWith(fieldComparator(dir.field, dir.ascending))
+            }
+            else -> grouped
+        }
 
         return if (dir.ascending) {
-            grouped.toSortedMap(compareBy { it })
+            ordered.toSortedMap(compareBy { it })
         } else {
-            grouped.toSortedMap(compareByDescending { it })
+            ordered.toSortedMap(compareByDescending { it })
         }
     }
 }

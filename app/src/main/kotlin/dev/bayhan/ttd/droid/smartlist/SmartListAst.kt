@@ -38,6 +38,11 @@ data class ExistsCondition(
     val field: Field
 ) : Condition()
 
+data class TimeExistsCondition(
+    val has: Boolean,
+    val field: DateField
+) : Condition()
+
 data class DoneCondition(
     val done: Boolean
 ) : Condition()
@@ -63,7 +68,8 @@ enum class TextOp { INCLUDES, EXCLUDES, EQUALS }
 data class DateValue(
     val anchor: DateAnchor,
     val offset: Int = 0,
-    val anchorDate: String? = null
+    val anchorDate: String? = null,
+    val anchorTime: String? = null
 )
 
 enum class DateAnchor { TODAY, ABSOLUTE }

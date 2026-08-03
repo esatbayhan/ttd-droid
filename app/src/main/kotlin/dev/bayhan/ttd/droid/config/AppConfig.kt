@@ -147,10 +147,10 @@ object AppConfig {
             .getStringSet(KEY_NOTIFIED_TASKS, emptySet())?.toSet() ?: emptySet()
     }
 
-    fun markTaskNotified(context: Context, filename: String, key: String, date: String) {
+    fun markTaskNotified(context: Context, entry: String) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val current = prefs.getStringSet(KEY_NOTIFIED_TASKS, emptySet())?.toMutableSet() ?: mutableSetOf()
-        current.add("$filename|$key|$date")
+        current.add(entry)
         prefs.edit().putStringSet(KEY_NOTIFIED_TASKS, current).apply()
     }
 

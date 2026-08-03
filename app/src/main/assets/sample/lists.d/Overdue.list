@@ -1,8 +1,0 @@
----
-name: Overdue
-icon: ⚠️
-description: Tasks past their due date
----
-due <= today - 1
-
-sort by due asc

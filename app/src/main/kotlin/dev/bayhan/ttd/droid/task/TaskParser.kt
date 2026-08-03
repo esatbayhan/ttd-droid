@@ -2,13 +2,18 @@ package dev.bayhan.ttd.droid.task
 
 object TaskParser {
 
-    private val datePattern = Regex("^\\d{4}-\\d{2}-\\d{2}$")
     private val priorityPattern = Regex("^\\([A-Z]\\)$")
     private val projectPattern = Regex("(?:^|\\s)\\+(\\S+)")
     private val contextPattern = Regex("(?:^|\\s)@(\\S+)")
-    private val tagPattern = Regex("(?:^|\\s)([^\\s:]+):([^\\s:]+)(?=\\s|$)")
+    private val tagPattern = Regex("(?:^|\\s)([^\\s:]+):(\\S+)(?=\\s|$)")
 
     private val dateValueTagKeys = setOf("due", "scheduled", "starting", "updated")
+
+    private fun leadingDate(text: String): Pair<String, String>? {
+        val token = text.substringBefore(' ')
+        if (TaskDateTime.parse(token) == null) return null
+        return token to text.removePrefix(token).trimStart()
+    }
 
     fun parse(line: String): Task {
         if (line.isBlank()) {
@@ -27,28 +32,24 @@ object TaskParser {
         var creationDate: String? = null
 
         if (rest.startsWith("x ")) {
-            val afterX = rest.substring(2)
-            val parts = afterX.split(" ", limit = 2)
-            if (parts.isNotEmpty() && datePattern.matches(parts[0])) {
+            leadingDate(rest.substring(2))?.let { (date, remaining) ->
                 done = true
-                completionDate = parts[0]
-                rest = if (parts.size > 1) parts[1] else ""
+                completionDate = date
+                rest = remaining
             }
         }
 
-        if (!done) {
-            if (rest.length >= 4 && rest[0] == '(' && rest[3] == ' ') {
-                val candidate = rest.substring(0, 3)
-                if (priorityPattern.matches(candidate)) {
-                    priority = candidate[1]
-                    rest = rest.substring(4)
-                }
+        if (!done && rest.length >= 4 && rest[0] == '(' && rest[3] == ' ') {
+            val candidate = rest.substring(0, 3)
+            if (priorityPattern.matches(candidate)) {
+                priority = candidate[1]
+                rest = rest.substring(4)
             }
         }
 
-        if (rest.length >= 10 && datePattern.matches(rest.substring(0, 10)) && rest.getOrNull(10) == ' ') {
-            creationDate = rest.substring(0, 10)
-            rest = rest.substring(11)
+        leadingDate(rest)?.let { (date, remaining) ->
+            creationDate = date
+            rest = remaining
         }
 
         val description = rest
@@ -66,7 +67,7 @@ object TaskParser {
             if (key in consumedKeys) continue
             consumedKeys.add(key)
 
-            if (key in dateValueTagKeys && !datePattern.matches(value)) continue
+            if (key in dateValueTagKeys && TaskDateTime.parse(value) == null) continue
 
             tags[key] = value
         }

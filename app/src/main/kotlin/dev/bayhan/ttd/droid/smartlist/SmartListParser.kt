@@ -1,12 +1,31 @@
 package dev.bayhan.ttd.droid.smartlist
 
+import dev.bayhan.ttd.droid.task.TaskDateTime
+import java.time.LocalDate
+
 object SmartListParser {
-    private val dateRegex = Regex("^\\d{4}-\\d{2}-\\d{2}$")
-    private val todayOffsetRegex = Regex("^today\\s*([+-])\\s*(\\d+)$")
-    private val absDateOffsetRegex = Regex("^(\\d{4}-\\d{2}-\\d{2})\\s*([+-])\\s*(\\d+)$")
+    private val templateRegex = Regex("""\{\{dir(?::(\d+))?\}\}""")
+    private val filterTemplateValueRegex = Regex(
+        """^(?:(?:due|scheduled|starting|updated|creation_date) (?:<=|>=|==|!=|=|<|>)|priority (?:above|below|=)|(?:project|context|description) (?:includes|excludes|equals)) .+$"""
+    )
+    private val dateValueRegex = Regex(
+        "^(today|\\d{4}-\\d{2}-\\d{2})(?:\\s*([+-])\\s*(\\d+))?\\s*(?:T(\\d{2}:\\d{2}))?$"
+    )
+    private val dateFields = mapOf(
+        "due" to DateField.DUE,
+        "scheduled" to DateField.SCHEDULED,
+        "starting" to DateField.STARTING,
+        "updated" to DateField.UPDATED,
+        "creation_date" to DateField.CREATION_DATE
+    )
+
+    fun parse(input: String, groupPath: String): SmartList? {
+        val resolved = resolveTemplates(input, groupPath) ?: return null
+        return parse(resolved)
+    }
 
     fun parse(input: String): SmartList {
-        val lines = input.lines()
+        val lines = input.split('\n').map { it.removeSuffix("\r") }
         var inFrontmatter = false
         var inBody = false
         var name = ""
@@ -17,6 +36,7 @@ object SmartListParser {
         val sorts = mutableListOf<Directive>()
         val groups = mutableListOf<Directive>()
         val prefills = mutableListOf<Prefill>()
+        val scalarPrefills = mutableSetOf<String>()
         var currentBlock = mutableListOf<Condition>()
 
         for (line in lines) {
@@ -69,10 +89,22 @@ object SmartListParser {
                         groups.add(Directive(field, ascending))
                     }
                     trimmed.startsWith("prefill ") -> {
-                        val rest = trimmed.removePrefix("prefill ").trim()
-                        val parts = rest.split(" ", limit = 2)
-                        if (parts.size == 2) {
-                            prefills.add(Prefill(parts[0], parts[1]))
+                        val rest = line.trimStart().removePrefix("prefill ")
+                        val separator = rest.indexOf(' ')
+                        if (separator > 0) {
+                            val field = rest.substring(0, separator)
+                            val value = rest.substring(separator + 1)
+                            val valid = when (field) {
+                                "project" -> isValidTextValue(value) && '+' !in value
+                                "context" -> isValidTextValue(value) && '@' !in value
+                                "priority" -> value.length == 1 && value[0] in 'A'..'Z'
+                                "due", "scheduled", "starting" -> parseDateValue(value) != null
+                                else -> false
+                            }
+                            val isScalar = field != "project" && field != "context"
+                            if (valid && (!isScalar || scalarPrefills.add(field))) {
+                                prefills.add(Prefill(field, value))
+                            }
                         }
                     }
                     else -> {
@@ -101,10 +133,57 @@ object SmartListParser {
         )
     }
 
+    private fun resolveTemplates(input: String, groupPath: String): String? {
+        val groups = groupPath.split('/').filter { it.isNotEmpty() }
+        var delimiterCount = 0
+        var invalid = false
+        val resolved = input.split('\n').map { it.removeSuffix("\r") }.map { line ->
+            val trimmed = line.trim()
+            if (trimmed == "---") {
+                delimiterCount++
+                line
+            } else if (delimiterCount < 2 || !isTemplateValuePosition(trimmed)) {
+                line
+            } else {
+                templateRegex.replace(line) { match ->
+                    val depthText = match.groups[1]?.value
+                    val depth = depthText?.toIntOrNull() ?: if (depthText == null) 0 else null
+                    val index = depth?.let { groups.lastIndex - it }
+                    if (index == null || index < 0) {
+                        invalid = true
+                        match.value
+                    } else {
+                        groups[index]
+                    }
+                }
+            }
+        }.joinToString("\n")
+        return resolved.takeUnless { invalid }
+    }
+
+    private fun isTemplateValuePosition(line: String): Boolean =
+        line.matches(filterTemplateValueRegex) ||
+            line.startsWith("prefill project ") ||
+            line.startsWith("prefill context ")
+
+    private fun isValidTextValue(value: String): Boolean =
+        value.isNotEmpty() &&
+            !value.first().isWhitespace() &&
+            !value.last().isWhitespace() &&
+            value.none { it != ' ' && it.isWhitespace() }
+
     private fun parseCondition(text: String): Condition? {
         when {
             text == "done" -> return DoneCondition(true)
             text == "not done" -> return DoneCondition(false)
+            text.startsWith("has time ") -> {
+                val field = dateFields[text.removePrefix("has time ").trim()]
+                return field?.let { TimeExistsCondition(true, it) }
+            }
+            text.startsWith("no time ") -> {
+                val field = dateFields[text.removePrefix("no time ").trim()]
+                return field?.let { TimeExistsCondition(false, it) }
+            }
             text.startsWith("has ") -> {
                 val field = parseField(text.removePrefix("has "))
                 return field?.let { ExistsCondition(true, it) }
@@ -212,24 +291,27 @@ object SmartListParser {
     }
 
     private fun parseDateValue(text: String): DateValue? {
-        val t = text.trim()
-        if (t == "today") return DateValue(DateAnchor.TODAY, 0)
-        val todayOffset = todayOffsetRegex.find(t)
-        if (todayOffset != null) {
-            val sign = if (todayOffset.groupValues[1] == "+") 1 else -1
-            val num = todayOffset.groupValues[2].toIntOrNull() ?: return null
-            return DateValue(DateAnchor.TODAY, sign * num)
+        val match = dateValueRegex.matchEntire(text.trim()) ?: return null
+        val anchorText = match.groupValues[1]
+        if (anchorText != "today" && TaskDateTime.parse(anchorText) == null) return null
+        val time = match.groupValues[4].takeIf { it.isNotEmpty() }
+        if (time != null && TaskDateTime.parse("2000-01-01T$time") == null) return null
+        val magnitudeText = match.groupValues[3]
+        val magnitude = if (magnitudeText.isEmpty()) 0 else magnitudeText.toIntOrNull() ?: return null
+        val offset = if (match.groupValues[2] == "-") -magnitude else magnitude
+        return if (anchorText == "today") {
+            DateValue(DateAnchor.TODAY, offset, anchorTime = time)
+        } else {
+            DateValue(DateAnchor.ABSOLUTE, offset, anchorText, time)
         }
-        val absDateOffset = absDateOffsetRegex.find(t)
-        if (absDateOffset != null) {
-            val base = absDateOffset.groupValues[1]
-            val sign = if (absDateOffset.groupValues[2] == "+") 1 else -1
-            val num = absDateOffset.groupValues[3].toIntOrNull() ?: return null
-            return DateValue(DateAnchor.ABSOLUTE, sign * num, base)
-        }
-        if (dateRegex.matches(t)) {
-            return DateValue(DateAnchor.ABSOLUTE, 0, t)
-        }
-        return null
+    }
+
+    fun resolveDateValue(text: String, today: LocalDate = LocalDate.now()): String? {
+        val value = parseDateValue(text) ?: return null
+        val base = when (value.anchor) {
+            DateAnchor.TODAY -> today
+            DateAnchor.ABSOLUTE -> value.anchorDate?.let(LocalDate::parse) ?: return null
+        }.plusDays(value.offset.toLong())
+        return base.toString() + value.anchorTime?.let { "T$it" }.orEmpty()
     }
 }

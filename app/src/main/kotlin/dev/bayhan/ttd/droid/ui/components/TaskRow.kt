@@ -18,10 +18,13 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import dev.bayhan.ttd.droid.task.Task
+import dev.bayhan.ttd.droid.task.TaskDateTime
+import dev.bayhan.ttd.droid.ui.formatDateTokensForDisplay
 import dev.bayhan.ttd.droid.ui.stripDateTokens
 import dev.bayhan.ttd.droid.ui.stripUpdatedToken
 
-private val highlightPattern = Regex("""\+\S+|@\S+|(?:due|scheduled|starting):\d{4}-\d{2}-\d{2}""")
+private val highlightPattern =
+    Regex("""\+\S+|@\S+|(?:due|scheduled|starting):\d{4}-\d{2}-\d{2}(?: \d{2}:\d{2})?""")
 
 @Composable
 fun TaskRow(
@@ -49,7 +52,7 @@ fun TaskRow(
         var d = task.description
         if (hideDateValues) d = stripDateTokens(d)
         if (hideUpdatedDate) d = stripUpdatedToken(d)
-        d
+        formatDateTokensForDisplay(d)
     }()
     val annotatedDescription = remember(description) {
         buildDescription(description, dueColor, scheduledColor, projectColor, contextColor)
@@ -89,7 +92,12 @@ fun TaskRow(
                             "scheduled", "starting" -> scheduledColor
                             else -> tagColor
                         }
-                        Text("$key:$value", color = color, style = MaterialTheme.typography.labelSmall)
+                        val displayValue = if (key in setOf("due", "scheduled", "starting", "updated")) {
+                            TaskDateTime.formatForDisplay(value)
+                        } else {
+                            value
+                        }
+                        Text("$key:$displayValue", color = color, style = MaterialTheme.typography.labelSmall)
                     }
                     task.projects.forEach {
                         Text("+$it", color = projectColor, style = MaterialTheme.typography.labelSmall)

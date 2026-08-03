@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Code
@@ -15,7 +16,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,7 +26,9 @@ import androidx.compose.ui.unit.dp
 import dev.bayhan.ttd.droid.R
 import dev.bayhan.ttd.droid.config.NotifyConfig
 import dev.bayhan.ttd.droid.smartlist.LoadedSmartList
+import dev.bayhan.ttd.droid.smartlist.Prefill
 import dev.bayhan.ttd.droid.smartlist.SmartListEval
+import dev.bayhan.ttd.droid.smartlist.SmartListParser
 import dev.bayhan.ttd.droid.task.Task
 import dev.bayhan.ttd.droid.ui.components.DeleteConfirmationDialog
 import dev.bayhan.ttd.droid.ui.components.NewDirectoryDialog
@@ -51,6 +53,29 @@ sealed interface DrawerItem {
     data class Project(val name: String) : DrawerItem
     data class Context(val name: String) : DrawerItem
     data object Settings : DrawerItem
+}
+
+private fun DrawerItem?.taskListViewKey(): String = when (this) {
+    is DrawerItem.SmartList -> "smart-list:${group.orEmpty()}/$fileName"
+    is DrawerItem.Directory -> "directory:$path"
+    is DrawerItem.Project -> "project:$name"
+    is DrawerItem.Context -> "context:$name"
+    DrawerItem.Settings -> "settings"
+    null -> "tasks"
+}
+
+fun buildSmartListPrefill(prefills: List<Prefill>): String {
+    val priority = prefills.firstOrNull { it.field == "priority" }?.let { "(${it.value})" }
+    val remaining = prefills.mapNotNull { (field, value) ->
+        when (field) {
+            "project" -> "+$value"
+            "context" -> "@$value"
+            "due", "scheduled", "starting" ->
+                SmartListParser.resolveDateValue(value)?.let { "$field:$it" }
+            else -> null
+        }
+    }
+    return listOfNotNull(priority).plus(remaining).joinToString(" ")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,6 +118,7 @@ fun MainScreen(
     onDeleteDirectory: (groupPath: String, dirName: String) -> Unit = { _, _ -> }
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
     val allProjects = remember(tasks) { tasks.flatMap { it.projects }.distinct().sorted() }
@@ -592,7 +618,7 @@ fun MainScreen(
                             }
                             IconButton(onClick = { showSortSheet = true }) {
                                 Icon(
-                                    Icons.Default.Sort,
+                                    Icons.AutoMirrored.Filled.Sort,
                                     contentDescription = stringResource(R.string.chip_sort),
                                     modifier = Modifier.size(20.dp),
                                     tint = if (sortField != "default") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -602,6 +628,9 @@ fun MainScreen(
                     )
                 }
             },
+            snackbarHost = {
+                SnackbarHost(hostState = snackbarHostState)
+            },
             floatingActionButton = {
                 if (!showSettings) {
                     FloatingActionButton(onClick = {
@@ -610,15 +639,7 @@ fun MainScreen(
                             autoPrefillView && selectedItem is DrawerItem.Context -> "@${(selectedItem as DrawerItem.Context).name}"
                             else -> null
                         }
-                        val listPrefill = smartListPrefill.joinToString(" ") { (field, value) ->
-                            when (field) {
-                                "project" -> "+$value"
-                                "context" -> "@$value"
-                                "due" -> "due:$value"
-                                "scheduled" -> "scheduled:$value"
-                                else -> ""
-                            }
-                        }.trim()
+                        val listPrefill = buildSmartListPrefill(smartListPrefill)
                         val combined = listOfNotNull(viewPrefill, listPrefill.ifEmpty { null })
                             .joinToString(" ").trim()
                         editorMode = EditorMode.Add(prefill = combined.ifEmpty { null })
@@ -677,12 +698,14 @@ fun MainScreen(
                     onEditTask = { task -> editorMode = EditorMode.Edit(task.filename, task.raw) },
                     onDeleteTask = onDeleteTask,
                     onUndoDelete = onUndoDelete,
+                    snackbarHostState = snackbarHostState,
                     onUpdateTime = onUpdateTime,
                     modifier = Modifier.padding(padding),
                     showFullTaskText = showFullTaskText,
                     hideDateValues = hideDateValuesInList,
                     hideUpdatedDate = hideUpdatedDate,
                     highlightTaskKey = highlightTaskKey,
+                    viewKey = selectedItem.taskListViewKey(),
                     groupDirectives = groupDirectives,
                     sortDirectives = sortDirectives,
                     sortField = sortField,

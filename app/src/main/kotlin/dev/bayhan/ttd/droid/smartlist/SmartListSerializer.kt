@@ -59,6 +59,10 @@ object SmartListSerializer {
             val field = fieldName(condition.field)
             "$prefix $field"
         }
+        is TimeExistsCondition -> {
+            val prefix = if (condition.has) "has time" else "no time"
+            "$prefix ${dateFieldName(condition.field)}"
+        }
         is DateCondition -> {
             val field = dateFieldName(condition.field)
             val op = when (condition.op) {
@@ -74,16 +78,18 @@ object SmartListSerializer {
         }
     }
 
-    private fun serializeDateValue(dv: DateValue): String = when (dv.anchor) {
-        DateAnchor.TODAY -> if (dv.offset == 0) "today"
-            else if (dv.offset > 0) "today+${dv.offset}"
-            else "today${dv.offset}"
-        DateAnchor.ABSOLUTE -> {
-            val base = dv.anchorDate ?: ""
-            if (dv.offset == 0) base
-            else if (dv.offset > 0) "$base+${dv.offset}"
-            else "$base${dv.offset}"
+    private fun serializeDateValue(dv: DateValue): String {
+        val base = when (dv.anchor) {
+            DateAnchor.TODAY -> "today"
+            DateAnchor.ABSOLUTE -> dv.anchorDate.orEmpty()
         }
+        val offset = when {
+            dv.offset > 0 -> "+${dv.offset}"
+            dv.offset < 0 -> dv.offset.toString()
+            else -> ""
+        }
+        val time = dv.anchorTime?.let { "T$it" }.orEmpty()
+        return base + offset + time
     }
 
     private fun textFieldName(field: TextField): String = when (field) {

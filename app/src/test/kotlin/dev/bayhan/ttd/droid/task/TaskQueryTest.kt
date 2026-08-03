@@ -74,6 +74,19 @@ class TaskQueryTest {
     }
 
     @Test
+    fun `creation date sort places date only before timed values on the same day`() {
+        val sorted = TaskQuery.defaultSort(listOf(
+            t(creationDate = "2026-07-20T09:00", desc = "late"),
+            t(creationDate = "2026-07-20", desc = "start"),
+            t(creationDate = "2026-07-20T08:00", desc = "early")
+        ))
+        assertEquals(
+            listOf("2026-07-20", "2026-07-20T08:00", "2026-07-20T09:00"),
+            sorted.map { it.creationDate }
+        )
+    }
+
+    @Test
     fun `description sorts alphabetically as tiebreaker`() {
         val tasks = listOf(t(desc = "c"), t(desc = "a"), t(desc = "b"))
         val sorted = TaskQuery.defaultSort(tasks)

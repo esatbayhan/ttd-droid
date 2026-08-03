@@ -35,6 +35,8 @@
 
     <!-- Grouping -->
     <string name="grouped_by">Grouped by %1$s</string>
+    <string name="group_collapse">Collapse group</string>
+    <string name="group_expand">Expand group</string>
     <string name="group_field_due">Due date</string>
     <string name="group_field_scheduled">Scheduled date</string>
     <string name="group_field_starting">Starting date</string>
@@ -65,6 +67,8 @@
     <string name="editor_plus_3d">+3d</string>
     <string name="editor_pick_date">Pick date…</string>
     <string name="editor_pick_date_cd">Pick date</string>
+    <string name="editor_pick_time">Pick time…</string>
+    <string name="editor_clear_time">Clear time</string>
     <string name="editor_section_projects">Projects</string>
     <string name="editor_section_contexts">Contexts</string>
     <string name="editor_section_additional">Additional info</string>
@@ -87,7 +91,7 @@
     <string name="settings_show_task_counts">Show task counts next to title</string>
     <string name="settings_show_task_counts_desc">Display the number of tasks in the current view next to the top bar title</string>
     <string name="settings_show_updated_date">Show updated date in task description</string>
-    <string name="settings_show_updated_date_desc">When enabled, the updated:YYYY-MM-DD tag is visible in the task list and editor</string>
+    <string name="settings_show_updated_date_desc">When enabled, the updated:YYYY-MM-DD[THH:MM] tag is visible in the task list and editor</string>
     <string name="settings_notifications">Notifications</string>
     <string name="settings_notify_due">Due date notifications</string>
     <string name="settings_notify_scheduled">Scheduled date notifications</string>
@@ -96,8 +100,7 @@
     <string name="settings_change">Change</string>
     <string name="settings_disabled">Disabled</string>
     <string name="settings_version">Tasks</string>
-    <string name="settings_version_info">Version 0.1.0 — Spec v2.2.1</string>
-    <string name="settings_load_sample_data">Load Sample Data</string>
+    <string name="settings_version_info">Version 0.3.0 - Spec v3.0.0</string>
 
     <!-- Chip bar -->
     <string name="chip_reset_filters">Reset filters</string>

@@ -1,6 +1,6 @@
 # Tasks
 
-An Android task manager for the [todo.txt.d](https://github.com/esatbayhan/todo.txt.d) plain-text format. Tasks are individual `.txt` files in a directory you control — no cloud accounts, no proprietary databases.
+An Android task manager for the [todo.txt.d](https://github.com/esatbayhan/ttd-spec) plain-text format. Tasks are individual `.txt` files in a directory you control — no cloud accounts, no proprietary databases.
 
 Built with Kotlin and Jetpack Compose. Targets Android 14+ (minSdk 34).
 
@@ -10,19 +10,13 @@ Built with Kotlin and Jetpack Compose. Targets Android 14+ (minSdk 34).
 
 - Browse, create, edit, and complete tasks stored as plain `.txt` files via SAF (Storage Access Framework)
 - Full todo.txt syntax support: priorities `(A)`, projects `+project`, contexts `@context`, due/scheduled/starting/updated dates
-- [Smart lists](https://github.com/esatbayhan/todo.txt.d/blob/main/LISTS.md) — user-defined filter views with `AND`/`OR` logic, `sort by`, and `group by` directives
+- [Smart lists](https://github.com/esatbayhan/ttd-spec/blob/main/LISTS.md) — user-defined filter views with `AND`/`OR` logic, `sort by`, and `group by` directives
 - Directory-based list groups for organizing smart lists in the sidebar
 - Auto-generated project and context views
 - Per-task swipe actions: complete (right), delete with undo (left), update timestamp
 - Task editor with project/context autocomplete and smart list prefill support
 - Due date and scheduled date notifications
 - Home screen widget showing today's tasks
-
-## Screenshots
-
-| | | | |
-|-|-|-|-|
-| ![](media/1.png) | ![](media/2.png) | ![](media/3.png) | ![](media/4.png) |
 
 ## What it doesn't do
 
@@ -45,7 +39,7 @@ Tasks is not affiliated with Syncthing or Tailscale.
 
 ## Related projects
 
-- [todo.txt.d specification](https://github.com/esatbayhan/todo.txt.d) — The format spec this app implements (v2.2.0)
+- [todo.txt.d specification](https://github.com/esatbayhan/ttd-spec) — The format spec this app implements (v3.0.0)
 - [ttd-rs](https://github.com/esatbayhan/ttd-rs) — Terminal UI for desktops, same format
 - [Syncthing](https://syncthing.net/) — Continuous file synchronization
 - [Tailscale](https://tailscale.com/) — Zero-config VPN for secure device connectivity

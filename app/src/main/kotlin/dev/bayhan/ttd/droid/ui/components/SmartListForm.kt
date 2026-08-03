@@ -487,17 +487,22 @@ private fun conditionLabel(cond: Condition): String = when (cond) {
     is PriorityCondition -> "priority ${when(cond.op){PriorityOp.ABOVE->"above";PriorityOp.BELOW->"below";PriorityOp.EQ->"="}} ${cond.value}"
     is TextCondition -> "${cond.field.name.lowercase()} ${cond.op.name.lowercase()} ${cond.value}"
     is ExistsCondition -> "${if (cond.has) "has" else "no"} ${cond.field.name.lowercase()}"
+    is TimeExistsCondition -> "${if (cond.has) "has time" else "no time"} ${cond.field.name.lowercase()}"
     is DateCondition -> "${cond.field.name.lowercase()} ${cond.op.name} ${dateValueString(cond.value)}"
 }
 
-private fun dateValueString(dv: DateValue): String = when (dv.anchor) {
-    DateAnchor.TODAY -> if (dv.offset == 0) "today" else "today${if (dv.offset > 0) "+" else ""}${dv.offset}"
-    DateAnchor.ABSOLUTE -> if (dv.offset == 0) (dv.anchorDate ?: "") else "${dv.anchorDate}${if (dv.offset > 0) "+" else ""}${dv.offset}"
+private fun dateValueString(dv: DateValue): String {
+    val base = when (dv.anchor) {
+        DateAnchor.TODAY -> if (dv.offset == 0) "today" else "today${if (dv.offset > 0) "+" else ""}${dv.offset}"
+        DateAnchor.ABSOLUTE -> if (dv.offset == 0) dv.anchorDate.orEmpty()
+            else "${dv.anchorDate}${if (dv.offset > 0) "+" else ""}${dv.offset}"
+    }
+    return base + dv.anchorTime?.let { "T$it" }.orEmpty()
 }
 
 private fun availableOperators(field: String): List<String> = when (field) {
     "due", "scheduled", "starting", "updated", "creation_date" ->
-        listOf("=", "<", "<=", ">", ">=", "has", "no")
+        listOf("=", "<", "<=", ">", ">=", "has", "no", "has time", "no time")
     "priority" -> listOf("=", "above", "below", "has", "no")
     "project", "context", "description" -> listOf("includes", "excludes", "has", "no")
     "done" -> emptyList()
@@ -506,7 +511,7 @@ private fun availableOperators(field: String): List<String> = when (field) {
 
 private fun operatorNeedsValue(field: String, op: String?): Boolean = when (field) {
     "done" -> false
-    else -> op != null && op !in listOf("has", "no")
+    else -> op != null && op !in listOf("has", "no", "has time", "no time")
 }
 
 private fun isDateField(field: String): Boolean =
@@ -520,7 +525,10 @@ private fun buildCondition(
 
     return when {
         isDateField(field) -> {
-            if (op in listOf("has", "no")) {
+            if (op in listOf("has time", "no time")) {
+                val dateField = DateField.valueOf(field.uppercase())
+                TimeExistsCondition(op == "has time", dateField)
+            } else if (op in listOf("has", "no")) {
                 val fieldEnum = parseFieldEnum(field) ?: return null
                 ExistsCondition(op == "has", fieldEnum)
             } else {

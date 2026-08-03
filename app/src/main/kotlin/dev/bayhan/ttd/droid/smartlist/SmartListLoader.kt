@@ -36,7 +36,7 @@ object SmartListLoader {
                 try {
                     context.contentResolver.openInputStream(file.uri)?.use { stream ->
                         val text = stream.bufferedReader().readText()
-                        val list = SmartListParser.parse(text)
+                        val list = SmartListParser.parse(text, groupPath) ?: return@use
                         val fileName = file.name?.removeSuffix(".list") ?: "unknown"
                         results.add(LoadedSmartList(groupPath, text, list, fileName))
                     }

@@ -1,6 +1,7 @@
 package dev.bayhan.ttd.droid.ui.components
 
 import androidx.compose.ui.graphics.Color
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -57,5 +58,19 @@ class SmartListSyntaxTest {
         val raw = "due <= today\nOR\nscheduled <= today\n"
         val result = buildListHighlightedText(raw, testColors)
         assertTrue(result.text.contains("OR"))
+    }
+
+    @Test
+    fun `date style covers optional time and time existence keyword`() {
+        val raw = "due >= todayT14:30\nhas time due\nstarting = 2026-07-20T09:00\n"
+        val result = buildListHighlightedText(raw, testColors)
+        val timedDateStart = raw.indexOf("2026-07-20T09:00")
+        assertTrue(result.spanStyles.any { span ->
+            span.start == timedDateStart && span.end == timedDateStart + "2026-07-20T09:00".length &&
+                span.item.color == testColors.date
+        })
+        val timeStart = raw.indexOf("time")
+        val timeSpan = result.spanStyles.single { span -> span.start == timeStart && span.end == timeStart + 4 }
+        assertEquals(testColors.operator, timeSpan.item.color)
     }
 }

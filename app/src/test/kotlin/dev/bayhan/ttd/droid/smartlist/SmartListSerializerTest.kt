@@ -283,4 +283,25 @@ class SmartListSerializerTest {
         val output = SmartListSerializer.serialize(list)
         assertTrue(!output.contains("order:"))
     }
+
+    @Test
+    fun `serialize time aware conditions and time existence`() {
+        val list = SmartList(
+            name = "Timed",
+            conditions = listOf(FilterBlock(listOf(
+                DateCondition(DateField.DUE, CompareOp.GTE,
+                    DateValue(DateAnchor.TODAY, 3, anchorTime = "10:00")),
+                DateCondition(DateField.STARTING, CompareOp.EQ,
+                    DateValue(DateAnchor.ABSOLUTE, anchorDate = "2026-12-31", anchorTime = "09:30")),
+                TimeExistsCondition(true, DateField.DUE),
+                TimeExistsCondition(false, DateField.UPDATED)
+            )))
+        )
+        val raw = SmartListSerializer.serialize(list)
+        assertTrue(raw.contains("due >= today+3T10:00"))
+        assertTrue(raw.contains("starting = 2026-12-31T09:30"))
+        assertTrue(raw.contains("has time due"))
+        assertTrue(raw.contains("no time updated"))
+        assertEquals(list.conditions, SmartListParser.parse(raw).conditions)
+    }
 }

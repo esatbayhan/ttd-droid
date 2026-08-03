@@ -61,6 +61,33 @@ class TaskParserTest {
         assertEquals("2024-06-01", task.tags["scheduled"])
     }
 
+    @Test fun `parse optional time in positional dates and defined tags`() {
+        val task = TaskParser.parse(
+            "x 2026-07-20T18:30 2026-07-19T09:15 Ship release " +
+                "due:2026-07-21T10:00 scheduled:2026-07-20T08:00 " +
+                "starting:2026-07-20T07:30 updated:2026-07-20T09:00"
+        )
+        assertTrue(task.done)
+        assertEquals("2026-07-20T18:30", task.completionDate)
+        assertEquals("2026-07-19T09:15", task.creationDate)
+        assertEquals("2026-07-21T10:00", task.tags["due"])
+        assertEquals("2026-07-20T08:00", task.tags["scheduled"])
+        assertEquals("2026-07-20T07:30", task.tags["starting"])
+        assertEquals("2026-07-20T09:00", task.tags["updated"])
+    }
+
+    @Test fun `general tag values may contain colons`() {
+        assertEquals("12:30", TaskParser.parse("Meeting time:12:30").tags["time"])
+    }
+
+    @Test fun `malformed defined date times remain unparsed`() {
+        listOf("T2:30", "T14:30:00", "T14:30Z").forEach { suffix ->
+            val task = TaskParser.parse("Meeting due:2026-07-20$suffix")
+            assertNull(suffix, task.tags["due"])
+            assertTrue(task.description.contains("due:2026-07-20$suffix"))
+        }
+    }
+
     @Test
     fun `parse task with multiple tags`() {
         val task = TaskParser.parse("(C) Plan trip due:2024-06-01 scheduled:2024-05-15 +Travel @desk")
@@ -112,9 +139,10 @@ class TaskParserTest {
     }
 
     @Test
-    fun `time with two colons not parsed as tag`() {
-        val task = TaskParser.parse("Meeting time:12:30 today")
-         assertTrue("time:12:30 contains colon in value, should not be a tag", task.tags.isEmpty())
+    fun `general tag with colon in value fixture parses`() {
+        val file = File(examplesDir, "edge-cases/general-tag-with-colon-in-value.txt")
+        val task = TaskParser.parse(file.readText().trim())
+        assertEquals("14:30", task.tags["time"])
     }
 
     @Test
@@ -183,11 +211,6 @@ class TaskParserTest {
             val task = TaskParser.parse(line)
             assertNotNull("Failed to parse edge-case fixture: ${file.name}", task)
         }
-
-        val timeColonTask = TaskParser.parse(
-            File(examplesDir, "edge-cases/time-with-two-colons-not-a-tag.txt").readText().trim()
-        )
-        assertTrue("time:12:30 should not create tags", timeColonTask.tags.isEmpty())
     }
 
     @Test

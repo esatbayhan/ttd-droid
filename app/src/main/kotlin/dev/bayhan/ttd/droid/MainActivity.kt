@@ -24,6 +24,7 @@ import dev.bayhan.ttd.droid.store.TaskStore
 import dev.bayhan.ttd.droid.task.Task
 import dev.bayhan.ttd.droid.task.TaskParser
 import dev.bayhan.ttd.droid.ui.MainScreen
+import dev.bayhan.ttd.droid.ui.replaceUpdatedDate
 import dev.bayhan.ttd.droid.ui.theme.TtdDroidTheme
 import dev.bayhan.ttd.droid.widget.TaskWidgetProvider
 import dev.bayhan.ttd.droid.widget.WidgetUpdateWorker
@@ -276,12 +277,7 @@ class MainActivity : ComponentActivity() {
 
     private fun updateTimeTag(task: Task) {
         val today = LocalDate.now().toString()
-        val updatedRegex = Regex("""\bupdated:\d{4}-\d{2}-\d{2}\b""")
-        val newRaw = if (updatedRegex.containsMatchIn(task.raw)) {
-            updatedRegex.replace(task.raw, "updated:$today")
-        } else {
-            "${task.raw} updated:$today"
-        }
+        val newRaw = replaceUpdatedDate(task.raw, today)
         lifecycleScope.launch {
             withContext(Dispatchers.IO) {
                 store.overwriteTask(task.filename, task.raw, newRaw)

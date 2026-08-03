@@ -360,13 +360,13 @@ class TaskStore(private val context: Context) {
                             val path = parts[0]
                             val fileName = parts[1]
                             val raw = String(android.util.Base64.decode(parts[2], android.util.Base64.NO_WRAP))
-                            val list = SmartListParser.parse(raw)
+                            val list = SmartListParser.parse(raw, path) ?: return@mapNotNull null
                             LoadedSmartList(path, raw, list, fileName)
                         }
                         2 -> {
                             val path = parts[0]
                             val raw = String(android.util.Base64.decode(parts[1], android.util.Base64.NO_WRAP))
-                            val list = SmartListParser.parse(raw)
+                            val list = SmartListParser.parse(raw, path) ?: return@mapNotNull null
                             LoadedSmartList(path, raw, list, list.name)
                         }
                         else -> null

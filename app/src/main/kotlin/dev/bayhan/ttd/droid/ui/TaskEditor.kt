@@ -27,6 +27,7 @@ import java.time.format.DateTimeFormatter
 import dev.bayhan.ttd.droid.smartlist.LoadedSmartList
 import dev.bayhan.ttd.droid.smartlist.SmartListEval
 import dev.bayhan.ttd.droid.task.Task
+import dev.bayhan.ttd.droid.task.TaskDateTime
 import dev.bayhan.ttd.droid.task.TaskParser
 
 sealed class EditorMode {
@@ -36,46 +37,85 @@ sealed class EditorMode {
 
 private val dateKeys = listOf("due", "scheduled", "starting")
 
-private fun dateRegex(key: String) = Regex("\\b${Regex.escape(key)}:(\\d{4}-\\d{2}-\\d{2})\\b")
+private fun dateTokenRegex(key: String) =
+    Regex("(?<!\\S)${Regex.escape(key)}:(\\S+)(?=\\s|$)")
 
-private fun getDateValue(key: String, text: String): String? =
-    dateRegex(key).find(text)?.groupValues?.get(1)
+private fun firstDateToken(key: String, text: String) = dateTokenRegex(key).find(text)
 
-private fun setDateValue(key: String, date: String, text: String): String {
-    val regex = Regex("\\b${Regex.escape(key)}:\\d{4}-\\d{2}-\\d{2}\\b")
-    return if (regex.containsMatchIn(text))
-        regex.replaceFirst(text, "${key}:$date")
-    else
-        "$text ${key}:$date"
+internal fun getDateValue(key: String, text: String): String? {
+    val value = firstDateToken(key, text)?.groupValues?.get(1) ?: return null
+    return value.takeIf { TaskDateTime.parse(it) != null }
 }
 
-private fun clearDateValue(key: String, text: String): String {
-    val regex = Regex("\\s*\\b${Regex.escape(key)}:\\d{4}-\\d{2}-\\d{2}\\b")
-    return regex.replaceFirst(text, "")
+internal fun setDateValue(key: String, date: String, text: String): String {
+    val match = firstDateToken(key, text) ?: return "$text ${key}:$date"
+    return if (TaskDateTime.parse(match.groupValues[1]) != null) {
+        text.replaceRange(match.range, "${key}:$date")
+    } else {
+        text.substring(0, match.range.first) + "${key}:$date " + text.substring(match.range.first)
+    }
+}
+
+internal fun clearDateValue(key: String, text: String): String {
+    val match = firstDateToken(key, text) ?: return text
+    if (TaskDateTime.parse(match.groupValues[1]) == null) return text
+    val start = if (match.range.first > 0 && text[match.range.first - 1].isWhitespace()) {
+        match.range.first - 1
+    } else {
+        match.range.first
+    }
+    val end = if (start == match.range.first && match.range.last + 1 < text.length) {
+        match.range.last + 2
+    } else {
+        match.range.last + 1
+    }
+    return text.removeRange(start, end)
 }
 
 internal fun stripDateTokens(raw: String): String {
     var result = raw
     for (key in dateKeys) {
-        result = result.replace(Regex("\\s*\\b${Regex.escape(key)}:\\d{4}-\\d{2}-\\d{2}\\b"), "")
+        result = clearDateValue(key, result)
     }
-    return result.trim()
+    return if (result == raw) raw else result.trim()
 }
 
 internal fun stripUpdatedToken(raw: String): String {
-    return raw.replace(Regex("\\s*\\bupdated:\\d{4}-\\d{2}-\\d{2}\\b"), "").trim()
+    val result = clearDateValue("updated", raw)
+    return if (result == raw) raw else result.trim()
+}
+
+internal fun replaceUpdatedDate(raw: String, date: String): String = setDateValue("updated", date, raw)
+
+internal fun setTimeOnDate(value: String, time: String): String =
+    "${value.substringBefore('T')}T$time"
+
+internal fun clearTimeFromDate(value: String): String = value.substringBefore('T')
+
+internal fun formatDateTokensForDisplay(raw: String): String {
+    var result = raw
+    for (key in dateKeys + "updated") {
+        val match = firstDateToken(key, result) ?: continue
+        val value = match.groupValues[1]
+        if (TaskDateTime.parse(value) != null) {
+            result = result.replaceRange(match.range, "$key:${TaskDateTime.formatForDisplay(value)}")
+        }
+    }
+    return result
 }
 
 internal fun reconstructTaskText(description: String, dates: Map<String, String?>): String {
-    val trimmed = description.trim()
-    val suffix = dates.filter { it.value != null }
-        .map { "${it.key}:${it.value}" }
-        .joinToString(" ")
-    return when {
-        suffix.isEmpty() -> trimmed
-        trimmed.isEmpty() -> suffix
-        else -> "$trimmed $suffix"
+    var result = description.trim()
+    for ((key, value) in dates) {
+        if (value == null) continue
+        val match = firstDateToken(key, result)
+        result = when {
+            match != null -> result.substring(0, match.range.first) + "$key:$value " + result.substring(match.range.first)
+            result.isEmpty() -> "$key:$value"
+            else -> "$result $key:$value"
+        }
     }
+    return result
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,6 +153,7 @@ fun TaskEditor(
     }
     var activeDateKey by remember { mutableStateOf("due") }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showTimePicker by remember { mutableStateOf(false) }
 
     val title = when (editorMode) {
         is EditorMode.Add -> stringResource(R.string.editor_title_add)
@@ -202,7 +243,11 @@ fun TaskEditor(
                     dateKeys.forEach { key ->
                         val isActive = key == activeDateKey
                         val value = dateValues[key]
-                        val label = if (value != null) "$key: $value" else key
+                        val label = if (value != null) {
+                            "$key: ${TaskDateTime.formatForDisplay(value)}"
+                        } else {
+                            key
+                        }
                         FilterChip(
                             selected = isActive,
                             onClick = {
@@ -255,6 +300,22 @@ fun TaskEditor(
                         label = { Text(stringResource(R.string.editor_pick_date)) },
                         leadingIcon = { Icon(Icons.Default.CalendarMonth, contentDescription = stringResource(R.string.editor_pick_date_cd), modifier = Modifier.size(16.dp)) }
                     )
+                    dateValues[activeDateKey]?.let { currentValue ->
+                        AssistChip(
+                            onClick = { showTimePicker = true },
+                            label = { Text(stringResource(R.string.editor_pick_time)) }
+                        )
+                        if ('T' in currentValue) {
+                            AssistChip(
+                                onClick = {
+                                    val dateOnly = clearTimeFromDate(currentValue)
+                                    if (hideDateValues) editorDates[activeDateKey] = dateOnly
+                                    else text = setDateValue(activeDateKey, dateOnly, text)
+                                },
+                                label = { Text(stringResource(R.string.editor_clear_time)) }
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -316,11 +377,11 @@ fun TaskEditor(
                     Text(stringResource(R.string.editor_section_additional), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(modifier = Modifier.height(4.dp))
                     parsedTask?.creationDate?.let {
-                        Text(stringResource(R.string.editor_created_date, it), style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.editor_created_date, TaskDateTime.formatForDisplay(it)), style = MaterialTheme.typography.bodySmall)
                     }
                     if (!hideUpdatedDate) {
                         parsedTask?.tags?.get("updated")?.let {
-                            Text(stringResource(R.string.editor_updated_date, it), style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.editor_updated_date, TaskDateTime.formatForDisplay(it)), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -422,5 +483,35 @@ fun TaskEditor(
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    if (showTimePicker) {
+        val current = dateValues[activeDateKey]?.let(TaskDateTime::parse)
+        val timePickerState = rememberTimePickerState(
+            initialHour = current?.time?.hour ?: 9,
+            initialMinute = current?.time?.minute ?: 0,
+            is24Hour = true
+        )
+        AlertDialog(
+            onDismissRequest = { showTimePicker = false },
+            text = { TimePicker(state = timePickerState) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val existing = dateValues[activeDateKey]
+                    if (existing != null) {
+                        val time = "%02d:%02d".format(timePickerState.hour, timePickerState.minute)
+                        val value = setTimeOnDate(existing, time)
+                        if (hideDateValues) editorDates[activeDateKey] = value
+                        else text = setDateValue(activeDateKey, value, text)
+                    }
+                    showTimePicker = false
+                }) { Text(stringResource(R.string.picker_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showTimePicker = false }) {
+                    Text(stringResource(R.string.picker_cancel))
+                }
+            }
+        )
     }
 }

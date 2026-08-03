@@ -5,11 +5,14 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import dev.bayhan.ttd.droid.smartlist.Directive
 import dev.bayhan.ttd.droid.smartlist.SmartListEval
@@ -40,6 +44,7 @@ fun TaskListContent(
     onEditTask: (Task) -> Unit,
     onDeleteTask: (Task) -> Unit,
     onUndoDelete: (Task) -> Unit,
+    snackbarHostState: SnackbarHostState,
     onRemoveFromList: (Task) -> Unit = {},
     onUpdateTime: (Task) -> Unit = {},
     modifier: Modifier = Modifier,
@@ -47,6 +52,7 @@ fun TaskListContent(
     hideDateValues: Boolean = false,
     hideUpdatedDate: Boolean = true,
     highlightTaskKey: String? = null,
+    viewKey: String = "",
     groupDirectives: List<Directive> = emptyList(),
     sortDirectives: List<Directive> = emptyList(),
     sortField: String = "default",
@@ -58,12 +64,16 @@ fun TaskListContent(
     }
     var selectedProjects by remember { mutableStateOf<Set<String>>(emptySet()) }
     var selectedContexts by remember { mutableStateOf<Set<String>>(emptySet()) }
-    val snackbarHostState = remember { SnackbarHostState() }
     val dismissedKeys = remember { mutableStateSetOf<String>() }
     val toggledDoneKeys = remember { mutableStateSetOf<String>() }
     val disappearingKeys = remember { mutableStateSetOf<String>() }
     val toggleJobs = remember { mutableMapOf<String, Job>() }
+    val collapsedGroupKeys = remember { mutableStateSetOf<String>() }
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(viewKey) {
+        collapsedGroupKeys.clear()
+    }
 
     val availableProjects = remember(sorted) {
         sorted.flatMap { it.projects }.distinct().sorted()
@@ -254,13 +264,26 @@ fun TaskListContent(
                     null
                 }
                 if (grouped != null && grouped.isNotEmpty()) {
+                    val currentGroupKeys = grouped.keys.toSet()
+                    LaunchedEffect(currentGroupKeys) {
+                        collapsedGroupKeys.retainAll(currentGroupKeys)
+                    }
                     LazyColumn(modifier = Modifier.fillMaxSize()) {
                         grouped.forEach { (groupName, groupTasks) ->
                             val displayName = formatGroupKey(groupName, groupField ?: "")
+                            val collapsed = groupName in collapsedGroupKeys
                             stickyHeader {
                                 Surface(
                                     color = MaterialTheme.colorScheme.surfaceVariant,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(role = Role.Button) {
+                                            if (collapsed) {
+                                                collapsedGroupKeys.remove(groupName)
+                                            } else {
+                                                collapsedGroupKeys.add(groupName)
+                                            }
+                                        }
                                 ) {
                                     Row(
                                         modifier = Modifier
@@ -274,16 +297,32 @@ fun TaskListContent(
                                             style = MaterialTheme.typography.titleSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
-                                        Text(
-                                            "${groupTasks.size}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                "${groupTasks.size}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Icon(
+                                                imageVector = if (collapsed) {
+                                                    Icons.Default.KeyboardArrowDown
+                                                } else {
+                                                    Icons.Default.KeyboardArrowUp
+                                                },
+                                                contentDescription = stringResource(
+                                                    if (collapsed) R.string.group_expand else R.string.group_collapse
+                                                ),
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
                             }
-                            items(groupTasks, key = { taskKey(it) }) { task ->
-                                AnimatedTaskItem(task = task, modifier = Modifier.animateItem())
+                            if (!collapsed) {
+                                items(groupTasks, key = { taskKey(it) }) { task ->
+                                    AnimatedTaskItem(task = task, modifier = Modifier.animateItem())
+                                }
                             }
                         }
                     }
@@ -296,10 +335,6 @@ fun TaskListContent(
                 }
             }
         }
-        SnackbarHost(
-            hostState = snackbarHostState,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 }
 
